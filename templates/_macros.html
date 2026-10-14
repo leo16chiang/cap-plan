@@ -1,0 +1,103 @@
+{% macro status_pill(status) -%}
+  {%- set labels = {'not_started': 'Not started', 'draft': 'Draft', 'submitted': 'Awaiting review',
+                    'changes_requested': 'Changes requested', 'approved': 'Ready to sign off', 'signed_off': 'Signed off'} -%}
+  <span class="pill pill-{{ status }}">{{ labels[status] }}</span>
+{%- endmacro %}
+
+{% macro stepper(status) -%}
+  {#- index of the step the review is waiting on; 4 = all done -#}
+  {%- set pos = {'not_started': 0, 'draft': 0, 'changes_requested': 0, 'submitted': 2, 'approved': 3, 'signed_off': 4}[status] -%}
+  <ol class="stepper" aria-label="Review progress">
+    {% for label in ['Fill in', 'Submit for review', 'Capacity Planning confirms', 'Sign off'] %}
+    <li class="{{ 'done' if loop.index0 < pos else ('current' if loop.index0 == pos else '') }}">
+      <span class="step-dot" aria-hidden="true">{{ '✓' if loop.index0 < pos else loop.index }}</span>{{ label }}
+    </li>
+    {% endfor %}
+  </ol>
+{%- endmacro %}
+
+{% macro field(q, answers, errors, quarters, usage, team_id) %}
+{% set val = answers.get(q.id) %}
+{% set err = errors.get(q.id) %}
+<div class="q{% if err %} has-error{% endif %}" id="field-{{ q.id }}">
+  {% if q.type in ('radio', 'checkboxes', 'quarters') %}
+  <p class="q-label" id="label-{{ q.id }}">{{ q.label }}{% if q.required %}<span class="req" title="Required to submit">*</span>{% endif %}</p>
+  {% else %}
+  <label class="q-label" for="{{ q.id }}">{{ q.label }}{% if q.required %}<span class="req" title="Required to submit">*</span>{% endif %}</label>
+  {% endif %}
+  {% if q.help %}<p class="help">{{ q.help }}</p>{% endif %}
+
+  {% if q.callout == 'lookback' %}
+  <div class="callout">
+    {% if usage.lookback %}
+    In the {{ usage.lookback.cycle_label }} you projected an average of <b>{{ usage.lookback.projected }} MSU</b> for {{ usage.lookback.window }}.
+    Actual was <b>{{ usage.lookback.actual }} MSU</b>
+    (<span class="{{ 'up' if usage.lookback.variance_pct > 0 else 'down' }}">{{ '%+.1f'|format(usage.lookback.variance_pct) }}%</span>).
+    {% else %}
+    There's no signed-off projection from last cycle to compare against.
+    {% endif %}
+    <a href="{{ url_for('team_history', team_id=team_id) }}">See full history</a>
+  </div>
+  {% endif %}
+
+  {% if q.type == 'quarters' %}
+  <div class="quarters" role="group" aria-labelledby="label-{{ q.id }}">
+    {% for qt in quarters %}
+    <div class="qt">
+      <label for="{{ q.id }}__{{ loop.index0 }}">{{ qt }}</label>
+      <div class="pct">
+        <input type="number" step="0.5" min="{{ q.min }}" max="{{ q.max }}" inputmode="decimal"
+               id="{{ q.id }}__{{ loop.index0 }}" name="{{ q.id }}__{{ loop.index0 }}"
+               value="{{ (val or ['', '', '', ''])[loop.index0] }}" class="growth-input" data-quarter="{{ loop.index0 }}">
+        <span aria-hidden="true">%</span>
+      </div>
+      <output class="msu-preview" data-quarter="{{ loop.index0 }}"></output>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% elif q.type == 'select' %}
+  <select id="{{ q.id }}" name="{{ q.id }}">
+    <option value="">Choose…</option>
+    {% for o in q.options %}<option{% if val == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
+  </select>
+
+  {% elif q.type == 'radio' %}
+  <div class="choices" role="radiogroup" aria-labelledby="label-{{ q.id }}">
+    {% for o in q.options %}
+    <label class="choice"><input type="radio" name="{{ q.id }}" value="{{ o }}"{% if val == o %} checked{% endif %}> <span>{{ o }}</span></label>
+    {% endfor %}
+  </div>
+
+  {% elif q.type == 'checkboxes' %}
+  <div class="choices choices-grid" role="group" aria-labelledby="label-{{ q.id }}" {% if q.exclusive %}data-exclusive="{{ q.exclusive }}"{% endif %}>
+    {% for o in q.options %}
+    <label class="choice"><input type="checkbox" name="{{ q.id }}" value="{{ o }}"{% if val and o in val %} checked{% endif %}> <span>{{ o }}</span></label>
+    {% endfor %}
+  </div>
+
+  {% endif %}
+
+  {% if q.has_other %}
+  {% set other_on = val == 'Other' or (val is not string and val and 'Other' in val) %}
+  <div class="other-field" data-other-for="{{ q.id }}" {% if not other_on %}hidden{% endif %}>
+    <label for="{{ q.id }}__other" class="sr-only">Describe "Other"</label>
+    <input type="text" id="{{ q.id }}__other" name="{{ q.id }}__other" maxlength="4000"
+           value="{{ answers.get(q.id ~ '__other') or '' }}" placeholder="Other: please describe">
+  </div>
+  {% endif %}
+
+  {% if q.type in ('quarters', 'select', 'radio', 'checkboxes') %}
+  {% elif q.type == 'textarea' %}
+  <textarea id="{{ q.id }}" name="{{ q.id }}" rows="{{ q.rows or 4 }}" maxlength="4000" placeholder="{{ q.placeholder or '' }}">{{ val or '' }}</textarea>
+
+  {% elif q.type == 'month' %}
+  <input type="month" id="{{ q.id }}" name="{{ q.id }}" value="{{ val or '' }}" class="input-short">
+
+  {% else %}
+  <input type="text" id="{{ q.id }}" name="{{ q.id }}" value="{{ val or '' }}" maxlength="4000" placeholder="{{ q.placeholder or '' }}">
+  {% endif %}
+
+  {% if err %}<p class="err">{{ err }}</p>{% endif %}
+</div>
+{% endmacro %}

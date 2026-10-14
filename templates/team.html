@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field, status_pill, stepper %}
+{% block title %}{{ team.name }} · Capacity Review{% endblock %}
+{% block content %}
+{% include "_team_header.html" %}
+
+{{ stepper(sub.status) }}
+
+<div class="status-banner status-{{ sub.status }}">
+  {{ status_pill(sub.status) }}
+  <div class="banner-text">
+  {% if sub.status == 'signed_off' %}
+    Signed off by <b>{{ sub.signed_off_name }}</b> on {{ sub.signed_off_at|when }}. The submission is locked.
+  {% elif sub.status == 'approved' %}
+    Capacity Planning ({{ sub.reviewed_name }}) confirmed this review on {{ sub.reviewed_at|when }}.
+    {% if role == 'signer' %}<b>You can now sign off below.</b>{% else %}Waiting for a signer on the team to sign off.{% endif %}
+  {% elif sub.status == 'submitted' %}
+    Submitted by {{ sub.submitted_by }} on {{ sub.submitted_at|when }}. Capacity Planning will review it with your team before sign-off. The answers are locked until then.
+  {% elif sub.status == 'changes_requested' %}
+    Capacity Planning ({{ sub.reviewed_name }}) sent this back on {{ sub.reviewed_at|when }}. Update your answers and submit again.
+  {% elif sub.status == 'draft' %}
+    Draft last saved by {{ sub.updated_by }} on {{ sub.updated_at|when }}. Not yet submitted.
+  {% else %}
+    Nothing submitted yet. Fill in the form and submit it for review. Capacity Planning will confirm it with you before you sign off.
+  {% endif %}
+  {% if sub.review_note and sub.status in ('changes_requested', 'approved') %}
+    <blockquote class="review-note"><span class="small muted">Note from {{ sub.reviewed_name }}:</span> {{ sub.review_note }}</blockquote>
+  {% endif %}
+  </div>
+</div>
+
+{% if user.is_admin and sub.status in ('submitted', 'approved', 'signed_off') %}
+<section class="card review-panel">
+  <h2>Capacity Planning review</h2>
+  {% if sub.status == 'submitted' %}
+  <p class="muted">Go through the answers below with the team. Approve once you've confirmed them so the team can sign off, or send them back with what needs to change.</p>
+  <div class="review-actions">
+    <form method="post" action="{{ url_for('team_review', team_id=team.id) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label for="approve-note">Note to the team <span class="muted small">(optional)</span></label>
+      <textarea id="approve-note" name="note" rows="2" placeholder="e.g. Walked through the numbers with Alice on the 10/20 call."></textarea>
+      <button class="btn btn-primary" type="submit" name="action" value="approve">Approve for sign-off</button>
+    </form>
+    <form method="post" action="{{ url_for('team_review', team_id=team.id) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label for="changes-note">What needs to change? <span class="req">*</span></label>
+      <textarea id="changes-note" name="note" rows="2" required placeholder="e.g. Q1 2027 looks low given last year's January peak. Can you revisit?"></textarea>
+      <button class="btn" type="submit" name="action" value="request_changes">Request changes</button>
+    </form>
+  </div>
+  {% elif sub.status == 'approved' %}
+  <p class="muted">Approved and waiting for the team to sign off. You can still send it back if something changed.</p>
+  <form method="post" action="{{ url_for('team_review', team_id=team.id) }}" class="inline-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="text" name="note" required placeholder="Reason (shown to the team)" aria-label="Reason for sending back">
+    <button class="btn" type="submit" name="action" value="request_changes">Send back for changes</button>
+  </form>
+  {% else %}
+  <p class="muted">Signed off. Reopen only if the team needs to change its submission. It will go through review again.</p>
+  <form method="post" action="{{ url_for('team_review', team_id=team.id) }}" class="inline-form" onsubmit="return confirm('Reopen this review? The team will need to resubmit and sign off again.');">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="text" name="note" required placeholder="Reason (logged)" aria-label="Reason for reopening">
+    <button class="btn" type="submit" name="action" value="reopen">Reopen</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if can_sign %}
+<section class="card signoff-card">
+  <h2>Sign off</h2>
+  <p class="muted">Capacity Planning has confirmed the answers below. Signing off records you as the approver for {{ team.name }} and locks the submission.</p>
+  <form method="post" id="signoff-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="choice attest{% if errors.attest %} has-error{% endif %}">
+      <input type="checkbox" name="attest" value="1">
+      <span>I confirm these projections are {{ team.name }}'s best current estimate and I'm authorized to sign off for this team.</span>
+    </label>
+    {% if errors.attest %}<p class="err">{{ errors.attest }}</p>{% endif %}
+    <div class="actions">
+      <button class="btn btn-primary" type="submit" name="action" value="signoff" data-confirm="Sign off for {{ team.name }}? The submission will be locked.">Sign off</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+<section class="stats">
+  <div class="stat"><span class="stat-label">Current baseline</span><span class="stat-value">{{ usage.baseline }} <small>MSU</small></span><span class="stat-sub">avg {{ usage.baseline_window }}</span></div>
+  <div class="stat"><span class="stat-label">12-month peak</span><span class="stat-value">{{ usage.peak }} <small>MSU</small></span><span class="stat-sub">{{ usage.peak_label }}</span></div>
+  <div class="stat"><span class="stat-label">Year over year</span><span class="stat-value {{ 'up' if usage.yoy_pct > 0 else 'down' }}">{{ '%+.1f'|format(usage.yoy_pct) }}%</span><span class="stat-sub">last 6 months vs prior year</span></div>
+  {% if usage.lookback %}
+  <div class="stat"><span class="stat-label">Last cycle vs actual</span><span class="stat-value {{ 'up' if usage.lookback.variance_pct > 0 else 'down' }}">{{ '%+.1f'|format(usage.lookback.variance_pct) }}%</span><span class="stat-sub">{{ usage.lookback.window }}, vs {{ usage.lookback.cycle_label }}</span></div>
+  {% else %}
+  <div class="stat"><span class="stat-label">Last cycle vs actual</span><span class="stat-value muted">—</span><span class="stat-sub">no signed-off projection last cycle</span></div>
+  {% endif %}
+</section>
+
+<section class="card chart-card">
+  <div class="chart-head">
+    <h2>Monthly CPU consumption</h2>
+    <p class="small muted">Average MSU per month.{% if editable %} Type percentages below to see your new projection on the chart.{% endif %}</p>
+  </div>
+  <div class="chart-wrap"><canvas id="usage-chart" aria-label="Monthly MSU chart: actual, last cycle projection and new projection"></canvas></div>
+</section>
+<script type="application/json" id="usage-data">{{ usage|tojson }}</script>
+
+<form method="post" class="review-form" id="review-form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <fieldset {% if not editable %}disabled{% endif %}>
+    {% if not editable and role != 'signer' and sub.status != 'signed_off' %}
+    <p class="readonly-note">You can view this review but not edit it. Only members of <code>{{ team.signer_group.displayName }}</code> can make changes, submit or sign off.</p>
+    {% endif %}
+
+    {% for section in sections %}
+    <section class="card">
+      <h2>{{ section.title }}</h2>
+      {% if section.intro %}<p class="muted">{{ section.intro }}</p>{% endif %}
+      {% for q in section.questions %}{{ field(q, answers, errors, quarters, usage, team.id) }}{% endfor %}
+    </section>
+    {% endfor %}
+
+    {% if editable %}
+    <section class="card submit-card">
+      <h2>Save or submit</h2>
+      <p class="muted">Save a draft any time. Any signer on your team can pick it up. When you're done, submit it: Capacity Planning will review it with you, and once they confirm it you'll be able to sign off.
+        Submitting requires every item marked <span class="req">*</span>.</p>
+      <div class="actions">
+        <button class="btn" type="submit" name="action" value="save">Save draft</button>
+        <button class="btn btn-primary" type="submit" name="action" value="submit" data-confirm="Submit {{ team.name }}'s projections for review? You won't be able to edit them unless Capacity Planning sends them back.">Submit for review</button>
+      </div>
+    </section>
+    {% endif %}
+  </fieldset>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='team.js') }}"></script>
+{% endblock %}

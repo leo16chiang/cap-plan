@@ -1,0 +1,20 @@
+{% if many_teams %}<nav class="crumbs"><a href="{{ url_for('my_teams') }}">← Your applications</a></nav>{% endif %}
+{% if user.is_admin %}<nav class="crumbs"><a href="{{ url_for('admin') }}">← Overview</a></nav>{% endif %}
+
+<div class="team-head">
+  <div>
+    <h1>{{ team.name }} <span class="code">{{ team.id }}</span></h1>
+    <p class="muted">{{ team.description }}</p>
+  </div>
+  <div class="access">
+    {% if role == 'signer' %}<span class="badge badge-signer">Signer</span>
+    {% elif role == 'viewer' %}<span class="badge">Viewer (read-only)</span>
+    {% else %}<span class="badge badge-admin">Admin view (read-only)</span>{% endif %}
+    {% if group_name %}<p class="small muted">From Entra group <code>{{ group_name }}</code><br>verified at sign-in {{ user.verified_at|when }}</p>{% endif %}
+  </div>
+</div>
+
+<nav class="tabs" aria-label="Team sections">
+  <a href="{{ url_for('team_page', team_id=team.id) }}" {% if active_tab == 'current' %}aria-current="page"{% endif %}>{{ cycle_label }}</a>
+  <a href="{{ url_for('team_history', team_id=team.id) }}" {% if active_tab == 'history' %}aria-current="page"{% endif %}>History</a>
+</nav>

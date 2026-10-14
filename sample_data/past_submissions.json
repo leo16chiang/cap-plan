@@ -1,0 +1,562 @@
+{
+  "_comment": "DEMO ONLY. Replayed through the review workflow on first run in mock mode so the History tab has data. HR Payroll has no history; General Ledger never signed off Spring 2026; Claims Spring 2026 shows a changes-requested round trip.",
+  "submissions": [
+    {
+      "team_id": "PAY",
+      "cycle": "2025-H2",
+      "versions": [
+        {
+          "event": "save",
+          "by": "alice.nguyen@example.com",
+          "name": "Alice Nguyen",
+          "at": "2025-10-20T14:12:00+00:00",
+          "answers": {
+            "growth": [
+              "5",
+              "3",
+              "3",
+              "4"
+            ],
+            "driver": "Business / transaction volume growth",
+            "confidence": "Medium: likely, but not yet scheduled or funded"
+          }
+        },
+        {
+          "event": "save",
+          "by": "alice.nguyen@example.com",
+          "name": "Alice Nguyen",
+          "at": "2025-10-21T16:40:00+00:00",
+          "answers": {
+            "growth": [
+              "6",
+              "3",
+              "4",
+              "5"
+            ],
+            "driver": "Business / transaction volume growth",
+            "confidence": "High: based on committed, funded plans",
+            "changes": [
+              "Major release or feature launch",
+              "Software upgrades (Db2, CICS, IMS, z/OS, compilers)"
+            ],
+            "biggest_change": "RTP (real-time payments) phase 2 launch in Feb 2026, adding request-for-payment messages. Expect ~8% more CICS transactions on PROD1/PROD2.",
+            "biggest_change_month": "2026-02",
+            "peaks": "Black Friday through Boxing Day; month-end ACH settlement.",
+            "batch_window": "No change",
+            "batch_detail": "",
+            "variance_explanation": "Spring volumes came in close to plan.",
+            "extra_contacts": "rtp-platform-leads@example.com",
+            "meeting": "No, this submission is enough",
+            "comments": ""
+          }
+        },
+        {
+          "event": "submit",
+          "by": "alice.nguyen@example.com",
+          "name": "Alice Nguyen",
+          "at": "2025-10-21T16:44:00+00:00"
+        },
+        {
+          "event": "approve",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2025-10-23T16:40:00+00:00",
+          "note": "Walked through the holiday peak assumptions with Alice. Confirmed."
+        },
+        {
+          "event": "signoff",
+          "by": "alice.nguyen@example.com",
+          "name": "Alice Nguyen",
+          "at": "2025-10-24T16:40:00+00:00"
+        }
+      ]
+    },
+    {
+      "team_id": "PAY",
+      "cycle": "2026-H1",
+      "versions": [
+        {
+          "event": "save",
+          "by": "alice.nguyen@example.com",
+          "name": "Alice Nguyen",
+          "at": "2026-04-13T13:05:00+00:00",
+          "answers": {
+            "growth": [
+              "1",
+              "2",
+              "9",
+              "4"
+            ],
+            "driver": "Business / transaction volume growth",
+            "confidence": "Medium: likely, but not yet scheduled or funded",
+            "changes": [
+              "Code or SQL tuning initiatives"
+            ],
+            "biggest_change": "Db2 SQL tuning on settlement batch expected to offset some volume growth (~3-4%).",
+            "biggest_change_month": "2026-06",
+            "peaks": "Holiday season Nov-Dec.",
+            "batch_window": "No change",
+            "batch_detail": "",
+            "variance_explanation": "Holiday peak was higher than projected; RTP adoption faster than expected.",
+            "extra_contacts": "",
+            "meeting": "Yes, set up a 30-minute review",
+            "comments": "Tuning savings are not yet proven in test."
+          }
+        },
+        {
+          "event": "submit",
+          "by": "alice.nguyen@example.com",
+          "name": "Alice Nguyen",
+          "at": "2026-04-13T13:09:00+00:00"
+        },
+        {
+          "event": "approve",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2026-04-15T13:05:00+00:00",
+          "note": "Walked through the holiday peak assumptions with Alice. Confirmed."
+        },
+        {
+          "event": "signoff",
+          "by": "alice.nguyen@example.com",
+          "name": "Alice Nguyen",
+          "at": "2026-04-16T13:05:00+00:00"
+        }
+      ]
+    },
+    {
+      "team_id": "CLM",
+      "cycle": "2025-H2",
+      "versions": [
+        {
+          "event": "save",
+          "by": "bob.martin@example.com",
+          "name": "Bob Martin",
+          "at": "2025-10-25T19:22:00+00:00",
+          "answers": {
+            "growth": [
+              "2",
+              "8",
+              "3",
+              "3"
+            ],
+            "driver": "Business / transaction volume growth",
+            "confidence": "Medium: likely, but not yet scheduled or funded",
+            "changes": [
+              "Batch schedule or job-stream changes"
+            ],
+            "biggest_change": "Moving the nightly adjudication batch earlier to meet a new 6am SLA.",
+            "biggest_change_month": "2026-01",
+            "peaks": "January (annual plan resets), end of Q1.",
+            "batch_window": "Need a shorter window / earlier completion",
+            "batch_detail": "Adjudication must finish by 06:00 instead of 08:00 from Jan 2026.",
+            "variance_explanation": "",
+            "extra_contacts": "",
+            "meeting": "Yes, set up a 30-minute review",
+            "comments": ""
+          }
+        },
+        {
+          "event": "submit",
+          "by": "bob.martin@example.com",
+          "name": "Bob Martin",
+          "at": "2025-10-25T19:26:00+00:00"
+        },
+        {
+          "event": "approve",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2025-10-27T19:22:00+00:00",
+          "note": "Reviewed with the team. Confirmed."
+        },
+        {
+          "event": "signoff",
+          "by": "bob.martin@example.com",
+          "name": "Bob Martin",
+          "at": "2025-10-28T19:22:00+00:00"
+        }
+      ]
+    },
+    {
+      "team_id": "CLM",
+      "cycle": "2026-H1",
+      "versions": [
+        {
+          "event": "save",
+          "by": "bob.martin@example.com",
+          "name": "Bob Martin",
+          "at": "2026-04-08T15:00:00+00:00",
+          "answers": {
+            "growth": [
+              "2",
+              "2",
+              "3",
+              "6"
+            ],
+            "driver": "Business / transaction volume growth",
+            "confidence": "Medium: likely, but not yet scheduled or funded",
+            "changes": [
+              "None planned"
+            ],
+            "biggest_change": "No major changes; organic growth only.",
+            "biggest_change_month": "",
+            "peaks": "January plan-year reset.",
+            "batch_window": "No change",
+            "batch_detail": "",
+            "variance_explanation": "Earlier batch completion didn't change total CPU, just timing.",
+            "extra_contacts": "",
+            "meeting": "No, this submission is enough",
+            "comments": ""
+          }
+        },
+        {
+          "event": "submit",
+          "by": "bob.martin@example.com",
+          "name": "Bob Martin",
+          "at": "2026-04-08T15:02:00+00:00"
+        },
+        {
+          "event": "request_changes",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2026-04-10T14:00:00+00:00",
+          "note": "Q1 2027 at +6% looks low. Last January ran about 10% over baseline with the plan-year reset. Can you revisit?"
+        },
+        {
+          "event": "save",
+          "by": "bob.martin@example.com",
+          "name": "Bob Martin",
+          "at": "2026-04-13T16:20:00+00:00",
+          "answers": {
+            "growth": [
+              "1",
+              "2",
+              "3",
+              "8"
+            ],
+            "driver": "Business / transaction volume growth",
+            "confidence": "High: based on committed, funded plans",
+            "changes": [
+              "None planned"
+            ],
+            "biggest_change": "No major changes; organic growth only.",
+            "biggest_change_month": "",
+            "peaks": "January plan-year reset.",
+            "batch_window": "No change",
+            "batch_detail": "",
+            "variance_explanation": "Earlier batch completion didn't change total CPU, just timing.",
+            "extra_contacts": "",
+            "meeting": "No, this submission is enough",
+            "comments": ""
+          }
+        },
+        {
+          "event": "submit",
+          "by": "bob.martin@example.com",
+          "name": "Bob Martin",
+          "at": "2026-04-13T16:21:00+00:00"
+        },
+        {
+          "event": "approve",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2026-04-14T13:00:00+00:00",
+          "note": "Discussed with Bob on the 4/14 call. Confirmed."
+        },
+        {
+          "event": "signoff",
+          "by": "bob.martin@example.com",
+          "name": "Bob Martin",
+          "at": "2026-04-14T15:30:00+00:00"
+        }
+      ]
+    },
+    {
+      "team_id": "BIL",
+      "cycle": "2025-H2",
+      "versions": [
+        {
+          "event": "save",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2025-10-19T17:45:00+00:00",
+          "answers": {
+            "growth": [
+              "6",
+              "0",
+              "-3",
+              "-6"
+            ],
+            "driver": "Workload migrating off the mainframe",
+            "confidence": "Medium: likely, but not yet scheduled or funded",
+            "changes": [
+              "Moving workload off the mainframe"
+            ],
+            "biggest_change": "Statement rendering moving to cloud in waves starting Q1 2026; print-stream generation stays on mainframe.",
+            "biggest_change_month": "2026-03",
+            "peaks": "November billing peak (annual renewals).",
+            "batch_window": "No change",
+            "batch_detail": "",
+            "variance_explanation": "",
+            "extra_contacts": "billing-modernization@example.com",
+            "meeting": "Yes, set up a 30-minute review",
+            "comments": "Migration dates depend on cloud vendor readiness."
+          }
+        },
+        {
+          "event": "submit",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2025-10-19T17:49:00+00:00"
+        },
+        {
+          "event": "approve",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2025-10-21T17:45:00+00:00",
+          "note": "Reviewed migration timing with Carla; numbers depend on the cloud wave dates."
+        },
+        {
+          "event": "signoff",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2025-10-22T17:45:00+00:00"
+        }
+      ]
+    },
+    {
+      "team_id": "BIL",
+      "cycle": "2026-H1",
+      "versions": [
+        {
+          "event": "save",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2026-04-17T12:10:00+00:00",
+          "answers": {
+            "growth": [
+              "0",
+              "0",
+              "8",
+              "2"
+            ],
+            "driver": "No major change expected",
+            "confidence": "Low: rough estimate",
+            "changes": [
+              "Moving workload off the mainframe"
+            ],
+            "biggest_change": "Cloud migration wave 2 delayed to 2027; assume flat usage until then.",
+            "biggest_change_month": "2027-01",
+            "peaks": "November renewals.",
+            "batch_window": "Unsure",
+            "batch_detail": "Depends on migration timing.",
+            "variance_explanation": "Wave 1 moved less workload than planned.",
+            "extra_contacts": "",
+            "meeting": "Yes, set up a 30-minute review",
+            "comments": ""
+          }
+        },
+        {
+          "event": "submit",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2026-04-17T12:14:00+00:00"
+        },
+        {
+          "event": "approve",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2026-04-19T12:10:00+00:00",
+          "note": "Reviewed migration timing with Carla; numbers depend on the cloud wave dates."
+        },
+        {
+          "event": "signoff",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2026-04-20T12:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "team_id": "CRD",
+      "cycle": "2025-H2",
+      "versions": [
+        {
+          "event": "save",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2025-10-20T10:00:00+00:00",
+          "answers": {
+            "growth": [
+              "14",
+              "4",
+              "7",
+              "9"
+            ],
+            "driver": "Business / transaction volume growth",
+            "confidence": "High: based on committed, funded plans",
+            "changes": [
+              "Onboarding a new application or workload",
+              "Shifting work to zIIP-eligible processing (Java, DRDA)"
+            ],
+            "biggest_change": "Onboarding a new co-brand card portfolio (~1.2M cards) in Q2 2026.",
+            "biggest_change_month": "2026-05",
+            "peaks": "Black Friday / Cyber Monday, Dec 15-24.",
+            "batch_window": "No change",
+            "batch_detail": "",
+            "variance_explanation": "",
+            "extra_contacts": "",
+            "meeting": "No, this submission is enough",
+            "comments": ""
+          }
+        },
+        {
+          "event": "submit",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2025-10-20T10:04:00+00:00"
+        },
+        {
+          "event": "approve",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2025-10-22T10:00:00+00:00",
+          "note": "Confirmed co-brand volumes against the onboarding plan."
+        },
+        {
+          "event": "signoff",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2025-10-23T10:00:00+00:00"
+        }
+      ]
+    },
+    {
+      "team_id": "CRD",
+      "cycle": "2026-H1",
+      "versions": [
+        {
+          "event": "save",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2026-04-18T09:30:00+00:00",
+          "answers": {
+            "growth": [
+              "4",
+              "7",
+              "20",
+              "10"
+            ],
+            "driver": "New application or functionality",
+            "confidence": "High: based on committed, funded plans",
+            "changes": [
+              "Major release or feature launch"
+            ],
+            "biggest_change": "Tokenized wallet payments launch Sep 2026.",
+            "biggest_change_month": "2026-09",
+            "peaks": "Holiday season; wallet launch marketing campaign.",
+            "batch_window": "No change",
+            "batch_detail": "",
+            "variance_explanation": "Co-brand onboarding landed on schedule.",
+            "extra_contacts": "",
+            "meeting": "No, this submission is enough",
+            "comments": ""
+          }
+        },
+        {
+          "event": "submit",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2026-04-18T09:34:00+00:00"
+        },
+        {
+          "event": "approve",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2026-04-20T09:30:00+00:00",
+          "note": "Confirmed co-brand volumes against the onboarding plan."
+        },
+        {
+          "event": "signoff",
+          "by": "carla.diaz@example.com",
+          "name": "Carla Diaz",
+          "at": "2026-04-21T09:30:00+00:00"
+        }
+      ]
+    },
+    {
+      "team_id": "GLD",
+      "cycle": "2025-H2",
+      "versions": [
+        {
+          "event": "save",
+          "by": "grace.lee@example.com",
+          "name": "Grace Lee",
+          "at": "2025-10-27T21:00:00+00:00",
+          "answers": {
+            "growth": [
+              "4",
+              "12",
+              "1",
+              "1"
+            ],
+            "driver": "No major change expected",
+            "confidence": "High: based on committed, funded plans",
+            "changes": [
+              "None planned"
+            ],
+            "biggest_change": "Year-end close in January is the only significant event.",
+            "biggest_change_month": "2026-01",
+            "peaks": "Year-end close (first two weeks of January), quarter-end closes.",
+            "batch_window": "No change",
+            "batch_detail": "",
+            "variance_explanation": "",
+            "extra_contacts": "",
+            "meeting": "No, this submission is enough",
+            "comments": ""
+          }
+        },
+        {
+          "event": "submit",
+          "by": "grace.lee@example.com",
+          "name": "Grace Lee",
+          "at": "2025-10-27T21:04:00+00:00"
+        },
+        {
+          "event": "approve",
+          "by": "cap.admin@example.com",
+          "name": "Capacity Planning Admin",
+          "at": "2025-10-29T21:00:00+00:00",
+          "note": "Year-end close pattern matches prior years. Confirmed."
+        },
+        {
+          "event": "signoff",
+          "by": "grace.lee@example.com",
+          "name": "Grace Lee",
+          "at": "2025-10-30T21:00:00+00:00"
+        }
+      ]
+    },
+    {
+      "team_id": "GLD",
+      "cycle": "2026-H1",
+      "versions": [
+        {
+          "event": "save",
+          "by": "grace.lee@example.com",
+          "name": "Grace Lee",
+          "at": "2026-04-29T18:15:00+00:00",
+          "answers": {
+            "growth": [
+              "1",
+              "1",
+              "",
+              ""
+            ],
+            "driver": "No major change expected"
+          }
+        }
+      ]
+    }
+  ]
+}

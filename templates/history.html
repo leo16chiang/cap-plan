@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_pill %}
+{% block title %}History · {{ team.name }} · Capacity Review{% endblock %}
+{% block content %}
+{% include "_team_header.html" %}
+
+{% if not entries %}
+<section class="card">
+  <h2>No history yet</h2>
+  <p class="muted">{{ team.name }} hasn't taken part in a capacity review before. Past cycles will appear here once submitted.</p>
+</section>
+{% endif %}
+
+{% for e in entries %}
+<section class="card history-cycle" id="cycle-{{ e.cycle.id }}">
+  <div class="history-head">
+    <div>
+      <h2>{{ e.cycle.label }}{% if e.is_current %} <span class="badge badge-signer">Current</span>{% endif %}</h2>
+      <p class="small muted">Projected {{ e.cycle.quarters[0].label }} – {{ e.cycle.quarters[-1].label }}
+        {% if e.outcomes and e.outcomes.baseline %} · baseline {{ e.outcomes.baseline }} MSU{% endif %}</p>
+    </div>
+    <div class="history-status">
+      {{ status_pill(e.sub.status) }}
+      <p class="small muted">
+        {% if e.sub.status == 'signed_off' %}{{ e.sub.signed_off_name }} · {{ e.sub.signed_off_at|when }}
+        {% if e.sub.reviewed_name %}<br>confirmed by {{ e.sub.reviewed_name }}{% endif %}
+        {% elif not e.is_current %}<b>Never signed off</b> · last activity {{ e.sub.updated_at|when }}
+        {% elif e.sub.updated_at %}In progress · last saved {{ e.sub.updated_at|when }}{% endif %}
+      </p>
+    </div>
+  </div>
+
+  {% if e.outcomes %}
+  <h3>Projection vs actual</h3>
+  <p class="small muted">Change in average monthly MSU versus that cycle's baseline.</p>
+  <div class="table-scroll">
+    <table class="outcomes">
+      <thead><tr><th>Quarter</th><th class="num">Projected</th><th class="num">Actual</th><th class="num">Difference</th><th></th></tr></thead>
+      <tbody>
+        {% for q in e.outcomes.quarters %}
+        <tr>
+          <td>{{ q.label }}</td>
+          <td class="num">{{ '%+.1f%%'|format(q.projected_pct) if q.projected_pct is not none else '—' }}</td>
+          <td class="num">{{ '%+.1f%%'|format(q.actual_pct) if q.actual_pct is not none else '—' }}</td>
+          <td class="num">
+            {% if q.diff is not none %}
+            <span class="diff {{ 'diff-big' if q.diff|abs >= 5 else '' }} {{ 'up' if q.diff > 0 else 'down' }}">{{ '%+.1f'|format(q.diff) }} pts</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="small muted">{% if q.status == 'in progress' %}quarter in progress{% elif q.status == 'future' %}not yet{% elif q.diff is not none %}{{ 'higher than projected' if q.diff > 0 else 'lower than projected' }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <details class="history-details" {% if loop.first and not e.is_current %}open{% endif %}>
+    <summary>Answers{% if e.sub.status != 'signed_off' %} (latest draft){% endif %}</summary>
+    <dl class="answers">
+      {% for label, value in e.answers %}
+      <dt>{{ label }}</dt>
+      <dd>{% if value %}{{ value }}{% else %}<span class="muted">No answer</span>{% endif %}</dd>
+      {% endfor %}
+    </dl>
+  </details>
+
+  {% if e.changelog %}
+  <details class="history-details">
+    <summary>Change log ({{ e.changelog|length }} {{ 'entry' if e.changelog|length == 1 else 'entries' }})</summary>
+    <ol class="changelog">
+      {% for v in e.changelog %}
+      <li>
+        <div class="changelog-head">
+          <span class="event event-{{ v.event }}">{{ v.label }}</span>
+          <span>{{ v.by_name or v.by_user }}</span>
+          <span class="small muted">{{ v.at|when }} · v{{ v.version }}</span>
+        </div>
+        {% if v.note %}<blockquote class="review-note">{{ v.note }}</blockquote>{% endif %}
+        {% if v.changes is not none %}
+          {% if v.changes %}
+          <table class="diff-table">
+            <tbody>
+              {% for label, before, after in v.changes %}
+              <tr><th scope="row">{{ label }}</th>
+                <td><del>{{ before or '(blank)' }}</del></td>
+                <td><ins>{{ after or '(blank)' }}</ins></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% elif v.event == 'save' %}<p class="small muted">No answers changed.</p>{% endif %}
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </details>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

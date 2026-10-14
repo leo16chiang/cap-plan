@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card narrow">
+  <h1>No application assigned</h1>
+  <p>You're signed in as <b>{{ user.upn }}</b>, but your account isn't in any capacity-review group in Entra ID.</p>
+  <p>If you own or approve mainframe capacity for an application, ask your manager or the Capacity Planning team to add you to that application's group:</p>
+  <ul class="group-list">
+    {% for t in teams %}
+    <li><b>{{ t.name }}</b>: <code>{{ t.signer_group.displayName }}</code> to sign off, <code>{{ t.viewer_group.displayName }}</code> to view</li>
+    {% endfor %}
+  </ul>
+  <p class="muted">Group changes take effect the next time you sign in.</p>
+</section>
+{% endblock %}

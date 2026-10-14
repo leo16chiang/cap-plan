@@ -1,0 +1,48 @@
+{
+  "_comment": "Maps each app team to the Entra security groups that grant access. Signers can edit and sign off; viewers are read-only. Replace the ids with the object IDs of your real Entra groups.",
+  "admin_group": { "id": "a9f3e2d1-5b7c-4c0e-8a1f-2d3e4f5a6b01", "displayName": "SG-CAPREVIEW-ADMINS" },
+  "teams": [
+    {
+      "id": "PAY",
+      "name": "Payments Core",
+      "description": "Real-time and batch payment processing (ACH, wire, RTP).",
+      "signer_group": { "id": "1b6e0c4a-2f3d-4b5a-9c8e-7a2b3c4d5e01", "displayName": "SG-CAPREVIEW-PAY-SIGNERS" },
+      "viewer_group": { "id": "1b6e0c4a-2f3d-4b5a-9c8e-7a2b3c4d5e02", "displayName": "SG-CAPREVIEW-PAY-VIEWERS" }
+    },
+    {
+      "id": "CLM",
+      "name": "Claims Processing",
+      "description": "Claims intake, adjudication and settlement batch.",
+      "signer_group": { "id": "2c7f1d5b-3a4e-4c6b-8d9f-8b3c4d5e6f01", "displayName": "SG-CAPREVIEW-CLM-SIGNERS" },
+      "viewer_group": { "id": "2c7f1d5b-3a4e-4c6b-8d9f-8b3c4d5e6f02", "displayName": "SG-CAPREVIEW-CLM-VIEWERS" }
+    },
+    {
+      "id": "BIL",
+      "name": "Customer Billing",
+      "description": "Monthly statement generation and billing cycles. Partially migrating to cloud.",
+      "signer_group": { "id": "3d8a2e6c-4b5f-4d7c-9e0a-9c4d5e6f7a01", "displayName": "SG-CAPREVIEW-BIL-SIGNERS" },
+      "viewer_group": { "id": "3d8a2e6c-4b5f-4d7c-9e0a-9c4d5e6f7a02", "displayName": "SG-CAPREVIEW-BIL-VIEWERS" }
+    },
+    {
+      "id": "CRD",
+      "name": "Card Authorization",
+      "description": "Debit and credit card authorization switch (CICS).",
+      "signer_group": { "id": "4e9b3f7d-5c6a-4e8d-8f1b-0d5e6f7a8b01", "displayName": "SG-CAPREVIEW-CRD-SIGNERS" },
+      "viewer_group": { "id": "4e9b3f7d-5c6a-4e8d-8f1b-0d5e6f7a8b02", "displayName": "SG-CAPREVIEW-CRD-VIEWERS" }
+    },
+    {
+      "id": "GLD",
+      "name": "General Ledger",
+      "description": "Enterprise general ledger and month/year-end close.",
+      "signer_group": { "id": "5f0c4a8e-6d7b-4f9e-9a2c-1e6f7a8b9c01", "displayName": "SG-CAPREVIEW-GLD-SIGNERS" },
+      "viewer_group": { "id": "5f0c4a8e-6d7b-4f9e-9a2c-1e6f7a8b9c02", "displayName": "SG-CAPREVIEW-GLD-VIEWERS" }
+    },
+    {
+      "id": "PRL",
+      "name": "HR Payroll",
+      "description": "Bi-weekly payroll calculation and tax filing batch.",
+      "signer_group": { "id": "6a1d5b9f-7e8c-4a0f-8b3d-2f7a8b9c0d01", "displayName": "SG-CAPREVIEW-PRL-SIGNERS" },
+      "viewer_group": { "id": "6a1d5b9f-7e8c-4a0f-8b3d-2f7a8b9c0d02", "displayName": "SG-CAPREVIEW-PRL-VIEWERS" }
+    }
+  ]
+}

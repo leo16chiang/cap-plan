@@ -1,0 +1,48 @@
+{
+  "_comment": "DEMO ONLY. Simulates Entra ID: each user has an object id (oid), a UPN and the object ids of the groups they belong to, exactly what an Entra ID token carries in its 'groups' claim. All demo accounts share demo_password.",
+  "demo_password": "Demo-2026!",
+  "users": [
+    {
+      "oid": "0f1e2d3c-0001-4000-8000-000000000001",
+      "upn": "alice.nguyen@example.com",
+      "name": "Alice Nguyen",
+      "scenario": "Signer for Payments Core; viewer on Card Authorization",
+      "groups": ["1b6e0c4a-2f3d-4b5a-9c8e-7a2b3c4d5e01", "4e9b3f7d-5c6a-4e8d-8f1b-0d5e6f7a8b02"]
+    },
+    {
+      "oid": "0f1e2d3c-0002-4000-8000-000000000002",
+      "upn": "bob.martin@example.com",
+      "name": "Bob Martin",
+      "scenario": "Signer for Claims Processing; viewer on Payments Core",
+      "groups": ["2c7f1d5b-3a4e-4c6b-8d9f-8b3c4d5e6f01", "1b6e0c4a-2f3d-4b5a-9c8e-7a2b3c4d5e02"]
+    },
+    {
+      "oid": "0f1e2d3c-0003-4000-8000-000000000003",
+      "upn": "carla.diaz@example.com",
+      "name": "Carla Diaz",
+      "scenario": "Signer for two teams: Customer Billing and Card Authorization",
+      "groups": ["3d8a2e6c-4b5f-4d7c-9e0a-9c4d5e6f7a01", "4e9b3f7d-5c6a-4e8d-8f1b-0d5e6f7a8b01"]
+    },
+    {
+      "oid": "0f1e2d3c-0004-4000-8000-000000000004",
+      "upn": "dev.patel@example.com",
+      "name": "Dev Patel",
+      "scenario": "Viewer only on General Ledger (read-only, cannot sign off)",
+      "groups": ["5f0c4a8e-6d7b-4f9e-9a2c-1e6f7a8b9c02"]
+    },
+    {
+      "oid": "0f1e2d3c-0005-4000-8000-000000000005",
+      "upn": "erin.walsh@example.com",
+      "name": "Erin Walsh",
+      "scenario": "Valid account but in no capacity-review groups",
+      "groups": []
+    },
+    {
+      "oid": "0f1e2d3c-0006-4000-8000-000000000006",
+      "upn": "cap.admin@example.com",
+      "name": "Capacity Planning Admin",
+      "scenario": "Admin: status of all teams, CSV export, reopen sign-offs",
+      "groups": ["a9f3e2d1-5b7c-4c0e-8a1f-2d3e4f5a6b01"]
+    }
+  ]
+}

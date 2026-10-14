@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_pill %}
+{% block content %}
+<h1>Your applications</h1>
+<p class="muted">You have access to more than one application. Pick one to review.</p>
+<div class="team-cards">
+  {% for team, role, sub in cards %}
+  <a class="card team-card" href="{{ url_for('team_page', team_id=team.id) }}">
+    <div class="team-card-head">
+      <h2>{{ team.name }}</h2>
+      <span class="code">{{ team.id }}</span>
+    </div>
+    <p class="muted">{{ team.description }}</p>
+    <div class="team-card-foot">
+      {{ status_pill(sub.status) }}
+      <span class="badge {% if role == 'signer' %}badge-signer{% endif %}">{{ 'Signer' if role == 'signer' else 'Viewer (read-only)' }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

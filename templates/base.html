@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Capacity Review{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="{{ url_for('index') }}">
+        <span class="brand-mark" aria-hidden="true"></span>
+        Mainframe Capacity Review
+        <span class="cycle">{{ cycle_label }}</span>
+      </a>
+      {% if user %}
+      <div class="who">
+        {% if user.is_admin %}<a href="{{ url_for('admin') }}">Overview</a>{% elif user.roles|length > 1 %}<a href="{{ url_for('my_teams') }}">My applications</a>{% endif %}
+        <span class="who-name">{{ user.name }}</span>
+        {% if user.is_admin %}<span class="badge badge-admin">Admin</span>{% endif %}
+        <form method="post" action="{{ url_for('logout') }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <button class="linklike" type="submit">Sign out</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}" role="status">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+
+  {% if auth_mode == 'mock' %}
+  <footer class="wrap demo-note">Demo mode: sign-in and Entra group membership are simulated from <code>sample_data/</code>. Usage figures are generated sample data.</footer>
+  {% endif %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

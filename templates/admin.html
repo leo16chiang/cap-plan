@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_pill %}
+{% block title %}Overview · Capacity Review{% endblock %}
+{% block content %}
+<div class="admin-head">
+  <h1>Review status</h1>
+  <a class="btn" href="{{ url_for('admin_export') }}">Export CSV</a>
+</div>
+
+<section class="stats stats-6">
+  <div class="stat {% if counts.submitted %}stat-attention{% endif %}"><span class="stat-label">Needs your review</span><span class="stat-value">{{ counts.submitted }}</span></div>
+  <div class="stat"><span class="stat-label">Sent back</span><span class="stat-value">{{ counts.changes_requested }}</span></div>
+  <div class="stat"><span class="stat-label">Ready to sign off</span><span class="stat-value">{{ counts.approved }}</span></div>
+  <div class="stat"><span class="stat-label">In draft</span><span class="stat-value">{{ counts.draft }}</span></div>
+  <div class="stat"><span class="stat-label">Not started</span><span class="stat-value">{{ counts.not_started }}</span></div>
+  <div class="stat"><span class="stat-label">Signed off</span><span class="stat-value">{{ counts.signed_off }} <small>/ {{ rows|length }}</small></span></div>
+</section>
+
+<section class="card table-card">
+  <table>
+    <thead>
+      <tr><th>Application</th><th>Status</th><th>Submitted</th><th>Reviewed</th><th>Signed off</th></tr>
+    </thead>
+    <tbody>
+      {% for team, sub in rows %}
+      <tr class="{% if sub.status == 'submitted' %}row-attention{% endif %}">
+        <td><a href="{{ url_for('team_page', team_id=team.id) }}">{{ team.name }}</a> <span class="code">{{ team.id }}</span>
+          {% if sub.status == 'submitted' %}<br><a class="small" href="{{ url_for('team_page', team_id=team.id) }}">Review now →</a>{% endif %}</td>
+        <td>{{ status_pill(sub.status) }}</td>
+        <td>{% if sub.submitted_at %}{{ sub.submitted_by }}<br><span class="small muted">{{ sub.submitted_at|when }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if sub.reviewed_at %}{{ sub.reviewed_name }}<br><span class="small muted">{{ sub.reviewed_at|when }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if sub.signed_off_by %}{{ sub.signed_off_name }}<br><span class="small muted">{{ sub.signed_off_at|when }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card table-card">
+  <h2>Audit log</h2>
+  <table class="log">
+    <thead><tr><th>When</th><th>User</th><th>Action</th><th>Team</th><th>Detail</th></tr></thead>
+    <tbody>
+      {% for e in log %}
+      <tr class="{% if e.action.endswith('denied') %}row-denied{% endif %}">
+        <td class="small">{{ e.at|when }}</td><td>{{ e.user or '' }}</td><td><code>{{ e.action }}</code></td><td>{{ e.team_id or '' }}</td><td class="small">{{ e.detail or '' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">No activity yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} {{ name }} · Capacity Review{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <p class="err-code">{{ code }}</p>
+  <h1>{{ name }}</h1>
+  <p>{{ message }}</p>
+  <p><a href="{{ url_for('index') }}">Back to your applications</a></p>
+</section>
+{% endblock %}
