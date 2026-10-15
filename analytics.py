@@ -2,7 +2,7 @@
 from statistics import mean
 
 from cycles import CURRENT, add_months, month_label
-from sample_usage import monthly_msu
+from usage import monthly_msu
 
 # How a cycle's baseline (starting point) is worked out from the months before its first quarter.
 # Capacity Planning picks one per cycle and per team on the admin Plan settings page.
@@ -141,9 +141,11 @@ def team_overview(team_id, base, prev_cycle=None, prev_answers=None, prev_base=N
     msu = monthly_msu(team_id)
     history = list(msu)
     end = CURRENT["quarters"][-1]["months"][-1]
-    months = list(history)
-    while months[-1] != end:
+    # Contiguous months from the first month of data to the end of this cycle (gaps chart as blanks).
+    months = [history[0] if history else add_months(CURRENT["start_month"], -1)]
+    while months[-1] < end:
         months.append(add_months(months[-1], 1))
+    n_hist = months.index(history[-1]) + 1 if history else 1
 
     prev_proj = {}
     if prev_cycle and prev_answers:
@@ -168,13 +170,17 @@ def team_overview(team_id, base, prev_cycle=None, prev_answers=None, prev_base=N
     stats = statistical_projection(msu, CURRENT, base["value"])
 
     last12 = history[-12:]
-    peak_month = max(last12, key=msu.get)
-    recent6 = mean(msu[m] for m in history[-6:])
-    prior6 = mean(msu[m] for m in history[-18:-12])
+    peak_month = max(last12, key=msu.get) if last12 else None
+    # Year over year needs 18 months: the last 6 versus the same 6 a year earlier.
+    yoy = None
+    if len(history) >= 18:
+        recent6 = mean(msu[m] for m in history[-6:])
+        prior6 = mean(msu[m] for m in history[-18:-12])
+        yoy = round((recent6 / prior6 - 1) * 100, 1)
 
     return {
         "labels": [month_label(m) for m in months],
-        "n_hist": len(history),
+        "n_hist": n_hist,
         "actual": [msu.get(m) for m in months],
         "last_projection": [prev_proj.get(m) for m in months],
         "adjusted_projection": [adj_proj.get(m) for m in months] if adj_proj else None,
@@ -185,8 +191,8 @@ def team_overview(team_id, base, prev_cycle=None, prev_answers=None, prev_base=N
         "baseline": base["value"],
         "baseline_basis": base["basis"],
         "baseline_n": BASELINE_METHODS.get(base.get("method"), {}).get("months") or 1,
-        "peak": msu[peak_month],
-        "peak_label": month_label(peak_month),
-        "yoy_pct": round((recent6 / prior6 - 1) * 100, 1),
+        "peak": msu[peak_month] if peak_month else None,
+        "peak_label": month_label(peak_month) if peak_month else "no data",
+        "yoy_pct": yoy,
         "lookback": lookback,
     }

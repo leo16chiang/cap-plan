@@ -23,7 +23,7 @@ Columns (only team_id, cycle and the growth columns are required):
                    is stored as "Other" with the text in the Other box.
 
 Existing submissions are left alone (use --replace to overwrite one that was itself imported).
-Set PORTAL_DB to import into a database other than instance/portal.db.
+Writes to the same database as the app: SQL Server when PORTAL_SQLSERVER is set, otherwise SQLite.
 """
 import argparse
 import csv
@@ -33,8 +33,9 @@ from datetime import datetime, timezone
 
 import analytics
 import cycles
-import workflow
-from app import TEAMS, apply_event, init_db
+import db as dbmod
+import store
+from app import TEAMS, init_db
 from questions import ALL_QUESTIONS, OTHER, other_key
 
 DEFAULT_USER = "imported@capacity-review"
@@ -51,10 +52,10 @@ def parse_when(raw, cycle):
     raw = (raw or "").strip()
     if not raw:
         y, m = cycle["start_month"]
-        return datetime(y, m, 1, tzinfo=timezone.utc).isoformat(timespec="seconds")
+        return datetime(y, m, 1).isoformat(timespec="seconds")
     dt = datetime.fromisoformat(raw)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt.isoformat(timespec="seconds")
 
 
@@ -120,11 +121,8 @@ def main(argv=None):
     if not args.csv:
         parser.error("give a CSV file, or --template CYCLE")
 
-    import sqlite3
-    from app import DB_PATH
     init_db()
-    db = sqlite3.connect(DB_PATH)
-    db.row_factory = sqlite3.Row
+    db = dbmod.Database()
 
     imported = skipped = failed = 0
     with open(args.csv, newline="", encoding="utf-8-sig") as fh:
@@ -144,7 +142,7 @@ def main(argv=None):
             base_raw = (row.get("baseline_msu") or "").strip()
             if base_raw:
                 try:
-                    base = (round(float(base_raw), 1), "Imported baseline")
+                    base = (round(float(base_raw), 1), "manual", "Imported baseline")
                 except ValueError:
                     problems.append(f"baseline_msu is not a number: {base_raw!r}")
                     base = None
@@ -153,7 +151,7 @@ def main(argv=None):
                 value = analytics.computed_baseline(analytics.monthly_msu(team_id), cycle, method)
                 if value is None:
                     problems.append("no baseline_msu and no usage data to calculate one")
-                base = (value, analytics.baseline_basis(cycle, method))
+                base = (value, method, analytics.baseline_basis(cycle, method))
             try:
                 at = parse_when(row.get("signed_off_at"), cycle)
             except ValueError:
@@ -161,33 +159,32 @@ def main(argv=None):
             if problems:
                 print(f"{where}: " + "; ".join(problems)); failed += 1; continue
 
-            existing = db.execute("SELECT status FROM submissions WHERE team_id = ? AND cycle = ?",
-                                  (team_id, cycle_id)).fetchone()
+            existing = db.one("SELECT submission_id, status FROM submissions WHERE team_id = ? AND cycle_id = ?",
+                              (team_id, cycle_id))
             if existing:
-                was_imported = db.execute(
-                    "SELECT 1 FROM submission_versions WHERE team_id = ? AND cycle = ? AND event = 'import'",
-                    (team_id, cycle_id)).fetchone()
+                was_imported = db.scalar(
+                    "SELECT COUNT(*) FROM submission_events WHERE submission_id = ? AND event = 'import'",
+                    (existing["submission_id"],))
                 if not (args.replace and was_imported):
                     print(f"{where}: already has a submission ({existing['status']}); skipped"
                           + ("" if was_imported else " (not an import, so --replace won't touch it)"))
                     skipped += 1
                     continue
                 if not args.dry_run:
-                    for table in ("submissions", "submission_versions"):
-                        db.execute(f"DELETE FROM {table} WHERE team_id = ? AND cycle = ?", (team_id, cycle_id))
+                    for table in ("answers", "growth_projections", "answer_flags", "submission_events", "submissions"):
+                        db.execute(f"DELETE FROM {table} WHERE submission_id = ?", (existing["submission_id"],))
 
             by = (row.get("signed_off_by") or "").strip().lower() or DEFAULT_USER
             name = (row.get("signed_off_name") or "").strip() or by
             if args.dry_run:
                 print(f"{where}: OK (baseline {base[0]} MSU, growth {answers['growth']})")
-            elif not apply_event(db, team_id, cycle_id, "import", by, name, at, answers=answers,
+            elif not store.apply_event(db, team_id, cycle_id, "import", by, name, at, answers=answers,
                                  note=f"Imported from {args.csv}", baseline=base):
                 print(f"{where}: could not import"); failed += 1; db.rollback(); continue
             else:
-                db.execute("INSERT INTO audit_log (at, user, action, team_id, cycle, detail) VALUES (?, ?, ?, ?, ?, ?)",
-                           (datetime.now(timezone.utc).isoformat(timespec="seconds"), "import_history.py",
-                            "import", team_id, cycle_id, json.dumps({"file": args.csv, "line": line})))
                 db.commit()
+                store.audit(db, "import_history.py", "import", team_id, cycle_id,
+                            json.dumps({"file": args.csv, "line": line}))
             imported += 1
 
     verb = "would import" if args.dry_run else "imported"

@@ -49,7 +49,7 @@
     <tbody>
       {% for e in log %}
       <tr class="{% if e.action.endswith('denied') %}row-denied{% endif %}">
-        <td class="small">{{ e.at|when }}</td><td>{{ e.user or '' }}</td><td><code>{{ e.action }}</code></td><td>{{ e.team_id or '' }}</td><td class="small">{{ e.detail or '' }}</td>
+        <td class="small">{{ e.logged_at|when }}</td><td>{{ e.user_upn or '' }}</td><td><code>{{ e.action }}</code></td><td>{{ e.team_id or '' }}</td><td class="small">{{ e.detail or '' }}</td>
       </tr>
       {% else %}
       <tr><td colspan="5" class="muted">No activity yet.</td></tr>

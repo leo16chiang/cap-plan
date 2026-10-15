@@ -9,7 +9,6 @@ import io
 import json
 import os
 import secrets
-import sqlite3
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -19,13 +18,14 @@ from flask import Flask, Response, abort, flash, g, redirect, render_template, r
 import analytics
 import auth
 import cycles
+import db as dbmod
+import store
 import workflow
 from questions import (ALL_QUESTIONS, FLAG_MAX_TEXT, QUARTERS, SECTIONS, diff_answers, display_answers,
                        display_value, flag_targets, format_target_value, parse_adjusted, parse_answers,
-                       parse_target, target_key, target_value, validate_complete)
+                       parse_target, target_key, target_value, validate_complete, validate_numbers)
 
 BASE = Path(__file__).resolve().parent
-DB_PATH = Path(os.environ.get("PORTAL_DB", BASE / "instance" / "portal.db"))
 CYCLE = cycles.CURRENT["id"]
 CYCLE_LABEL = cycles.CURRENT["label"]
 
@@ -60,145 +60,47 @@ else:
 
 # ---------------------------------------------------------------- database
 
-SCHEMA = """
--- Current state of each team's review, one row per team per cycle.
-CREATE TABLE IF NOT EXISTS submissions (
-    team_id         TEXT NOT NULL,
-    cycle           TEXT NOT NULL,
-    answers         TEXT NOT NULL DEFAULT '{}',
-    status          TEXT NOT NULL DEFAULT 'draft',   -- see workflow.py
-    updated_by      TEXT,
-    updated_at      TEXT,
-    submitted_by    TEXT,
-    submitted_at    TEXT,
-    reviewed_by     TEXT,
-    reviewed_name   TEXT,
-    reviewed_at     TEXT,
-    review_note     TEXT,
-    signed_off_by   TEXT,
-    signed_off_name TEXT,
-    signed_off_at   TEXT,
-    baseline        REAL,                            -- MSU the team's % answers were made against
-    baseline_basis  TEXT,                            -- e.g. "Last month (Sep 26)"
-    PRIMARY KEY (team_id, cycle)
-);
--- Every workflow event keeps a full copy of the answers at that moment.
-CREATE TABLE IF NOT EXISTS submission_versions (
-    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    team_id TEXT NOT NULL,
-    cycle   TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    event   TEXT NOT NULL,                  -- save | submit | request_changes | approve | signoff | reopen
-    status  TEXT NOT NULL,                  -- status after the event
-    answers TEXT NOT NULL,
-    by_user TEXT,
-    by_name TEXT,
-    at      TEXT NOT NULL,
-    note    TEXT,
-    baseline REAL,
-    UNIQUE (team_id, cycle, version)
-);
--- Capacity Planning's starting point per cycle. team_id '*' is the cycle-wide default;
--- a team row overrides it. baseline_value is only used when baseline_method = 'manual'.
-CREATE TABLE IF NOT EXISTS plan_settings (
-    cycle           TEXT NOT NULL,
-    team_id         TEXT NOT NULL,
-    baseline_method TEXT NOT NULL,
-    baseline_value  REAL,
-    note            TEXT,
-    updated_by      TEXT,
-    updated_at      TEXT,
-    PRIMARY KEY (cycle, team_id)
-);
--- Capacity Planning flags on a team's answers. The team's answer is never edited: "original" is
--- the answer when it was flagged, "adjusted" the value Capacity Planning plans with instead (optional).
--- Rows are never deleted; clearing a flag (or flagging the same answer again) sets resolved_*.
-CREATE TABLE IF NOT EXISTS answer_flags (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    team_id         TEXT NOT NULL,
-    cycle           TEXT NOT NULL,
-    question_id     TEXT NOT NULL,
-    quarter         INTEGER,                         -- quarter index for "quarters" questions
-    original        TEXT,
-    adjusted        TEXT,
-    comment         TEXT NOT NULL,
-    visible_to_team INTEGER NOT NULL DEFAULT 1,
-    created_by      TEXT NOT NULL,
-    created_name    TEXT,
-    created_at      TEXT NOT NULL,
-    resolved_by     TEXT,
-    resolved_name   TEXT,
-    resolved_at     TEXT,
-    resolution_note TEXT
-);
-CREATE INDEX IF NOT EXISTS answer_flags_team ON answer_flags (team_id, cycle);
-CREATE TABLE IF NOT EXISTS audit_log (
-    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    at      TEXT NOT NULL,
-    user    TEXT,
-    action  TEXT NOT NULL,
-    team_id TEXT,
-    cycle   TEXT,
-    detail  TEXT
-);
-"""
-
-# Columns added after the first release. CREATE TABLE IF NOT EXISTS won't add them to an existing
-# database, so init_db adds any that are missing.
-ADDED_COLUMNS = {
-    "submissions": {"baseline": "REAL", "baseline_basis": "TEXT"},
-    "submission_versions": {"baseline": "REAL"},
-}
-
-
-def migrate(conn):
-    for table, columns in ADDED_COLUMNS.items():
-        have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
-        for name, decl in columns.items():
-            if name not in have:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
-    conn.commit()
-
-
 def init_db():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    dbmod.init_schema()
+    db = dbmod.Database()
     try:
-        conn.executescript(SCHEMA)
-        migrate(conn)
-        empty = conn.execute("SELECT COUNT(*) FROM submissions").fetchone()[0] == 0
-        if AUTH_MODE == "mock" and empty:
-            seed_sample_history(conn)
+        if AUTH_MODE == "mock" and not db.scalar("SELECT COUNT(*) FROM submissions"):
+            seed_sample_history(db)
     finally:
-        conn.close()
+        db.close()
 
 
-def seed_sample_history(conn):
+def _utc(iso):
+    dt = datetime.fromisoformat(iso)
+    if dt.tzinfo:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.isoformat(timespec="seconds")
+
+
+def seed_sample_history(db):
     """Replays sample_data/past_submissions.json through the same workflow the live app uses."""
     data = json.loads((BASE / "sample_data" / "past_submissions.json").read_text(encoding="utf-8"))
     for sub in data["submissions"]:
         cycle = cycles.BY_ID[sub["cycle"]]
         method = cycle["default_baseline"]
         base = (analytics.computed_baseline(analytics.monthly_msu(sub["team_id"]), cycle, method),
-                analytics.baseline_basis(cycle, method))
+                method, analytics.baseline_basis(cycle, method))
         answers = {}
         for v in sub["versions"]:
             carries = workflow.EVENTS[v["event"]].get("answers")
             if carries:
                 answers = v.get("answers", answers)
-            ok = apply_event(conn, sub["team_id"], sub["cycle"], v["event"], v["by"], v["name"], v["at"],
-                             answers=answers if carries else None, note=v.get("note"),
-                             baseline=base if carries else None)
+            ok = store.apply_event(db, sub["team_id"], sub["cycle"], v["event"], v["by"], v["name"], _utc(v["at"]),
+                                   answers=answers if carries else None, note=v.get("note"),
+                                   baseline=base if carries else None)
             if not ok:
                 raise ValueError(f"Bad sample history for {sub['team_id']} {sub['cycle']}: {v['event']}")
-    conn.commit()
+    db.commit()
 
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
+        g.db = dbmod.Database()
     return g.db
 
 
@@ -209,113 +111,25 @@ def close_db(_exc):
         db.close()
 
 
-def now():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+now = store.now
 
 
 def audit(action, team_id=None, detail=""):
-    user = session.get("user", {}).get("upn")
-    db = get_db()
-    db.execute(
-        "INSERT INTO audit_log (at, user, action, team_id, cycle, detail) VALUES (?, ?, ?, ?, ?, ?)",
-        (now(), user, action, team_id, CYCLE if team_id else None, detail),
-    )
-    db.commit()
+    store.audit(get_db(), session.get("user", {}).get("upn"), action, team_id, CYCLE if team_id else None, detail)
 
 
 def load_submission(team_id, cycle=CYCLE):
-    row = get_db().execute(
-        "SELECT * FROM submissions WHERE team_id = ? AND cycle = ?", (team_id, cycle)
-    ).fetchone()
-    if row is None:
-        return {"status": "not_started", "answers": {}}
-    sub = dict(row)
-    sub["answers"] = json.loads(sub["answers"])
-    return sub
-
-
-def load_versions(team_id, cycle):
-    rows = get_db().execute(
-        "SELECT * FROM submission_versions WHERE team_id = ? AND cycle = ? ORDER BY version", (team_id, cycle)
-    ).fetchall()
-    return [{**dict(r), "answers": json.loads(r["answers"])} for r in rows]
-
-
-def apply_event(db, team_id, cycle, event, by_user, by_name, at, answers=None, note=None, baseline=None):
-    """Moves a submission through the workflow and records a version snapshot.
-
-    baseline: (MSU, basis text) the answers were made against; recorded with the answers so that
-    later changes to Capacity Planning's plan settings don't rewrite what the team saw.
-    Returns False (and changes nothing) if the submission's status doesn't allow the event,
-    including when someone else changed it a moment ago. The caller commits or rolls back.
-    """
-    spec = workflow.EVENTS[event]
-    row = db.execute(
-        "SELECT status, answers, baseline FROM submissions WHERE team_id = ? AND cycle = ?", (team_id, cycle)
-    ).fetchone()
-    current = row["status"] if row else "not_started"
-    if current not in spec["from"]:
-        return False
-
-    new_status = workflow.next_status(event, current)
-    fields = {"status": new_status}
-    if answers is not None:
-        fields.update(answers=json.dumps(answers), updated_by=by_user, updated_at=at)
-    if baseline is not None:
-        fields.update(baseline=baseline[0], baseline_basis=baseline[1])
-    if event == "submit":
-        fields.update(submitted_by=by_user, submitted_at=at)
-    if event in ("approve", "request_changes"):
-        fields.update(reviewed_by=by_user, reviewed_name=by_name, reviewed_at=at, review_note=note)
-    if event in ("signoff", "import"):
-        fields.update(signed_off_by=by_user, signed_off_name=by_name, signed_off_at=at)
-    if event == "reopen":
-        fields.update(signed_off_by=None, signed_off_name=None, signed_off_at=None,
-                      reviewed_by=None, reviewed_name=None, reviewed_at=None, review_note=None)
-
-    if row is None:
-        columns = ["team_id", "cycle", *fields]
-        try:
-            db.execute(f"INSERT INTO submissions ({', '.join(columns)}) VALUES ({', '.join('?' * len(columns))})",
-                       [team_id, cycle, *fields.values()])
-        except sqlite3.IntegrityError:  # another request created it first
-            return False
-    else:
-        # "AND status = ?" makes this a compare-and-set: it fails if the status moved underneath us.
-        cur = db.execute(
-            f"UPDATE submissions SET {', '.join(f'{k} = ?' for k in fields)} "
-            "WHERE team_id = ? AND cycle = ? AND status = ?",
-            [*fields.values(), team_id, cycle, current],
-        )
-        if cur.rowcount != 1:
-            return False
-
-    snapshot = answers if answers is not None else (json.loads(row["answers"]) if row else {})
-    snapshot_base = baseline[0] if baseline is not None else (row["baseline"] if row else None)
-    db.execute(
-        """
-        INSERT INTO submission_versions (team_id, cycle, version, event, status, answers, by_user, by_name, at, note,
-                                         baseline)
-        VALUES (?, ?, (SELECT COALESCE(MAX(version), 0) + 1 FROM submission_versions WHERE team_id = ? AND cycle = ?),
-                ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (team_id, cycle, team_id, cycle, event, new_status, json.dumps(snapshot), by_user, by_name, at, note,
-         snapshot_base),
-    )
-    return True
+    return store.load_submission(get_db(), team_id, cycle)
 
 
 # ---------------------------------------------------------------- plan settings & flags
 
-CYCLE_DEFAULT = "*"  # plan_settings.team_id for the cycle-wide default
+CYCLE_DEFAULT = None  # plan_settings.team_id for the cycle-wide default
 LOCKED = ("submitted", "approved", "signed_off")  # answers are locked, so is the baseline they were made against
 
 
 def load_setting(team_id, cycle_id):
-    row = get_db().execute(
-        "SELECT * FROM plan_settings WHERE cycle = ? AND team_id = ?", (cycle_id, team_id)
-    ).fetchone()
-    return dict(row) if row else None
+    return store.load_setting(get_db(), cycle_id, team_id)
 
 
 def cycle_default_method(cycle):
@@ -331,7 +145,7 @@ def plan_baseline(team_id, cycle, msu=None):
     team_row = load_setting(team_id, cycle["id"])
     method = team_row["baseline_method"] if team_row else cycle_default_method(cycle)
     if method == "manual":
-        value = team_row["baseline_value"]
+        value = team_row["manual_msu"]
     else:
         value = analytics.computed_baseline(msu or analytics.monthly_msu(team_id), cycle, method)
     return {
@@ -352,25 +166,21 @@ def team_baseline(team_id, cycle, sub, msu=None):
     settings never re-scales numbers the team already submitted or signed.
     """
     editable = cycle["id"] == CYCLE and sub["status"] in workflow.EDITABLE
-    if not editable and sub.get("baseline") is not None:
-        method = (load_setting(team_id, cycle["id"]) or {}).get("baseline_method")
-        return {"value": sub["baseline"], "method": method, "basis": sub.get("baseline_basis") or "",
+    if not editable and sub.get("baseline_msu") is not None:
+        return {"value": sub["baseline_msu"], "method": sub.get("baseline_method"),
+                "basis": sub.get("baseline_basis") or "",
                 "source": "submission", "setting": None, "locked": True}
     return plan_baseline(team_id, cycle, msu)
 
 
 def baseline_snapshot(base):
-    return (base["value"], base["basis"])
+    return (base["value"], base["method"], base["basis"])
 
 
 def load_flags(team_id, cycle_id, team_view=False):
     """All flags for a submission, newest first. team_view hides internal ones."""
-    sql = "SELECT * FROM answer_flags WHERE team_id = ? AND cycle = ?"
-    if team_view:
-        sql += " AND visible_to_team = 1"
-    flags = []
-    for row in get_db().execute(sql + " ORDER BY id DESC", (team_id, cycle_id)):
-        f = dict(row)
+    flags = store.load_flags(get_db(), team_id, cycle_id, team_view)
+    for f in flags:
         target = parse_target(target_key(f["question_id"], f["quarter"]))
         q = target[0] if target else {"id": f["question_id"], "label": f["question_id"], "type": "text"}
         f["target"] = target_key(f["question_id"], f["quarter"])
@@ -378,7 +188,6 @@ def load_flags(team_id, cycle_id, team_view=False):
         f["original_display"] = format_target_value(q, f["quarter"], f["original"])
         f["adjusted_display"] = format_target_value(q, f["quarter"], f["adjusted"])
         f["active"] = f["resolved_at"] is None
-        flags.append(f)
     return flags
 
 
@@ -402,9 +211,9 @@ def adjusted_growth(flags):
     """Capacity Planning's planning % per quarter (None where the team's number stands)."""
     out = [None] * len(QUARTERS)
     for f in flags:
-        if f["active"] and f["question_id"] == "growth" and f["quarter"] is not None and f["adjusted"]:
-            if f["quarter"] < len(out):
-                out[f["quarter"]] = float(f["adjusted"])
+        if f["active"] and f["question_id"] == "growth" and f["adjusted_pct"] is not None:
+            if f["quarter"] is not None and f["quarter"] < len(out):
+                out[f["quarter"]] = f["adjusted_pct"]
     return out
 
 
@@ -642,8 +451,8 @@ def render_team(team, role, sub, answers, errors, status=200, flag_form=None):
 
     base = team_baseline(team["id"], cycles.CURRENT, sub)
     # Tell the team if Capacity Planning moved the starting point since they last saved.
-    baseline_moved = (sub["status"] in workflow.EDITABLE and sub.get("baseline") is not None
-                      and base["value"] is not None and abs(sub["baseline"] - base["value"]) >= 0.05)
+    baseline_moved = (sub["status"] in workflow.EDITABLE and sub.get("baseline_msu") is not None
+                      and base["value"] is not None and abs(sub["baseline_msu"] - base["value"]) >= 0.05)
 
     flags = load_flags(team["id"], CYCLE, team_view=not is_admin())
     active = active_flags(flags, answers)
@@ -701,16 +510,19 @@ def team_submit(team_id):
     errors = {}
     if action == "submit":
         errors = validate_complete(answers)
+    elif action == "save":
+        errors = validate_numbers(answers)
     if action == "signoff" and not request.form.get("attest"):
         errors["attest"] = "Please confirm before signing off."
     if errors:
-        flash(f"{len(errors)} item(s) need attention. Nothing was {'submitted' if action == 'submit' else 'signed'}.", "error")
+        verb = {"submit": "submitted", "save": "saved"}.get(action, "signed")
+        flash(f"{len(errors)} item(s) need attention. Nothing was {verb}.", "error")
         return render_team(team, role, sub, answers if answers is not None else sub["answers"], errors, status=400)
 
     user = current_user()
     base = baseline_snapshot(plan_baseline(team_id, cycles.CURRENT)) if answers is not None else None
-    if not apply_event(get_db(), team_id, CYCLE, action, user["upn"], user["name"], now(), answers=answers,
-                       baseline=base):
+    if not store.apply_event(get_db(), team_id, CYCLE, action, user["upn"], user["name"], now(),
+                             answers=answers, baseline=base):
         get_db().rollback()
         abort(409, "This review changed while you were working on it. Refresh the page to see its current status.")
     get_db().commit()
@@ -743,7 +555,7 @@ def team_review(team_id):
         abort(409, workflow.blocked_message(action, sub["status"]))
 
     user = current_user()
-    if not apply_event(get_db(), team_id, CYCLE, action, user["upn"], user["name"], now(), note=note or None):
+    if not store.apply_event(get_db(), team_id, CYCLE, action, user["upn"], user["name"], now(), note=note or None):
         get_db().rollback()
         abort(409, "This review changed while you were looking at it. Refresh the page to see its current status.")
     get_db().commit()
@@ -780,21 +592,15 @@ def flag_add(team_id):
         return render_team(team, None, sub, sub["answers"], {}, status=400, flag_form={**form, "errors": errors})
 
     q, quarter = target
-    user, at, db = current_user(), now(), get_db()
-    # Flagging the same answer again replaces the open flag; the old one is kept, marked superseded.
-    db.execute(
-        """UPDATE answer_flags SET resolved_by = ?, resolved_name = ?, resolved_at = ?, resolution_note = 'Superseded'
-           WHERE team_id = ? AND cycle = ? AND question_id = ? AND quarter IS ? AND resolved_at IS NULL""",
-        (user["upn"], user["name"], at, team_id, CYCLE, q["id"], quarter),
-    )
+    user, db = current_user(), get_db()
     original = target_value(q, quarter, sub["answers"])
-    db.execute(
-        """INSERT INTO answer_flags (team_id, cycle, question_id, quarter, original, adjusted, comment,
-                                     visible_to_team, created_by, created_name, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (team_id, CYCLE, q["id"], quarter, original, adjusted, comment, int(form["visible"]),
-         user["upn"], user["name"], at),
-    )
+    # Flagging the same answer again closes the open flag as superseded; it stays in the table.
+    try:
+        store.add_flag(db, sub["submission_id"], q["id"], quarter, original, adjusted, comment, form["visible"],
+                       user["upn"], user["name"])
+    except db.IntegrityError:  # someone flagged the same answer at the same moment
+        db.rollback()
+        abort(409, "Someone else just flagged that answer. Refresh the page and try again.")
     db.commit()
     detail = f"{form['target']}: {original!r}" + (f" -> {adjusted!r}" if adjusted is not None else "")
     audit("flag", team_id, f"{detail} ({'shared' if form['visible'] else 'internal'}): {comment}")
@@ -808,12 +614,7 @@ def flag_clear(team_id, flag_id):
     TEAMS.get(team_id) or abort(404)
     note = request.form.get("note", "").strip()[:FLAG_MAX_TEXT] or None
     user = current_user()
-    cur = get_db().execute(
-        """UPDATE answer_flags SET resolved_by = ?, resolved_name = ?, resolved_at = ?, resolution_note = ?
-           WHERE id = ? AND team_id = ? AND cycle = ? AND resolved_at IS NULL""",
-        (user["upn"], user["name"], now(), note, flag_id, team_id, CYCLE),
-    )
-    if cur.rowcount != 1:
+    if not store.clear_flag(get_db(), flag_id, team_id, CYCLE, note, user["upn"], user["name"]):
         get_db().rollback()
         abort(409, "That flag was already cleared or doesn't belong to this review.")
     get_db().commit()
@@ -828,7 +629,7 @@ def team_history(team_id):
     team, role = viewable_team(team_id)
     entries = []
     for cycle in reversed(cycles.CYCLES):
-        versions = load_versions(team_id, cycle["id"])
+        versions = store.load_events(get_db(), team_id, cycle["id"])
         sub = load_submission(team_id, cycle["id"])
         if not versions and sub["status"] == "not_started":
             continue
@@ -874,7 +675,7 @@ def admin():
     counts = {status: 0 for status in workflow.STATUS_LABELS}
     for _, sub, _, _ in rows:
         counts[sub["status"]] += 1
-    log = get_db().execute("SELECT * FROM audit_log ORDER BY id DESC LIMIT 50").fetchall()
+    log = store.recent_audit(get_db(), 50)
     return render_template("admin.html", rows=rows, counts=counts, log=log, active_admin="overview")
 
 
@@ -911,17 +712,11 @@ def admin_plan_save():
     note = request.form.get("note", "").strip()[:FLAG_MAX_TEXT] or None
     db, user = get_db(), current_user()
 
-    if scope == CYCLE_DEFAULT:
+    if scope == "*":
         if method not in analytics.COMPUTED_METHODS:
             abort(400, "Pick a calculation for the cycle default.")
         old = cycle_default_method(cycles.CURRENT)
-        db.execute(
-            """INSERT INTO plan_settings (cycle, team_id, baseline_method, baseline_value, note, updated_by, updated_at)
-               VALUES (?, ?, ?, NULL, ?, ?, ?)
-               ON CONFLICT (cycle, team_id) DO UPDATE SET baseline_method = excluded.baseline_method,
-                   note = excluded.note, updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
-            (CYCLE, CYCLE_DEFAULT, method, note, user["upn"], now()),
-        )
+        store.save_setting(db, CYCLE, CYCLE_DEFAULT, method, None, note, user["upn"])
         db.commit()
         audit("plan_default", detail=f"{old} -> {method}" + (f": {note}" if note else ""))
         locked = [t["name"] for t in TEAMS.values()
@@ -940,7 +735,7 @@ def admin_plan_save():
                    "Send the review back for changes (or reopen it) before changing the starting point.")
     old = plan_baseline(scope, cycles.CURRENT)
     if method == "":  # back to the cycle default
-        db.execute("DELETE FROM plan_settings WHERE cycle = ? AND team_id = ?", (CYCLE, scope))
+        store.delete_setting(db, CYCLE, scope)
     elif method in analytics.BASELINE_METHODS:
         value = None
         if method == "manual":
@@ -954,14 +749,7 @@ def admin_plan_save():
         if method == "manual" and not note:
             flash(f"Add a note explaining the manual baseline for {team['name']}.", "error")
             return redirect(url_for("admin_plan") + f"#plan-{scope}")
-        db.execute(
-            """INSERT INTO plan_settings (cycle, team_id, baseline_method, baseline_value, note, updated_by, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT (cycle, team_id) DO UPDATE SET baseline_method = excluded.baseline_method,
-                   baseline_value = excluded.baseline_value, note = excluded.note,
-                   updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
-            (CYCLE, scope, method, value, note, user["upn"], now()),
-        )
+        store.save_setting(db, CYCLE, scope, method, value, note, user["upn"])
     else:
         abort(400)
     db.commit()

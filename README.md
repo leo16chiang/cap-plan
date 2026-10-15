@@ -11,7 +11,8 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Open http://127.0.0.1:5057. The SQLite database is created at `instance/portal.db`; delete it to start over.
+Open http://127.0.0.1:5057. Locally the app uses a SQLite file at `instance/portal.db` (delete it to start
+over); production uses SQL Server, see [Data](#data).
 
 > Windows note: the Microsoft Store build of Python can't read files under `AppData\Roaming` and
 > has trouble with very long paths. Keep the project in a normal folder (e.g. `C:\dev\capacity_portal`).
@@ -105,18 +106,64 @@ docstring for all columns.
 
 ## Data
 
-SQLite at `instance/portal.db`:
+Production runs on **SQL Server**; the local demo and the tests use SQLite with the same tables and SQL
+(`db.py` holds the few dialect differences). All reads and writes are in `store.py`.
 
-- `submissions`: current state per team per cycle (answers as JSON, status, who submitted/reviewed/signed and when)
-- `submission_versions`: a full snapshot of the answers on every workflow event; powers the History tab's change log
-- `plan_settings`: baseline method / manual value per cycle (`team_id = '*'` is the cycle default) and per team
-- `answer_flags`: Capacity Planning flags with the team's original answer and the adjusted value; never deleted
-- `audit_log`: logins, actions, denied attempts, exports, plan changes, flags
+| Table | What's in it |
+|---|---|
+| `submissions` | One row per team per cycle: status, who submitted/reviewed/signed off, and the baseline (MSU, method, description) the team's % are measured against |
+| `answers` | Every question except growth, one row per answered question. Checkbox picks are `; `-separated; "Other" text is in `other_text` |
+| `growth_projections` | The growth question, one row per quarter: `quarter_label`, `quarter_start` (join key to Db2 usage), `team_pct`, `team_msu` |
+| `answer_flags` | Capacity Planning flags: the team's original value, the adjusted value (`adjusted_pct` for growth), comment, visibility. Closed, never deleted |
+| `plan_settings` | Baseline method / manual MSU per cycle (`team_id` NULL = cycle default) and per team |
+| `submission_events` | Every workflow step with a JSON copy of the answers at that moment (the History tab's change log) |
+| `audit_log` | Sign-ins, actions, denied attempts, exports, setting changes |
 
-In demo mode the database is seeded with two past cycles from `sample_data/past_submissions.json`.
-New columns are added to an existing database automatically on start (`ADDED_COLUMNS` in `app.py`).
-For bigger schema changes, delete `instance/portal.db` and restart (or adopt a migration tool).
-Set `PORTAL_DB` to use a different database file.
+Teams (`sample_data/teams.json`), cycles (`cycles.py`) and the questionnaire (`questions.py`) stay in code.
+Actual usage is read from Db2, not copied.
+
+**Reporting** reads two views in schema `rpt`, never the tables:
+
+- `rpt.v_projections`: one row per team, cycle and quarter with `team_pct`/`team_msu` and
+  `planning_pct`/`planning_msu` (the team's value unless an open flag adjusted it). Join to the Db2 usage
+  table on team + `quarter_start` for projected vs actual (in Power BI, or via a linked server).
+- `rpt.v_answers`: every other answer, one row per team, cycle and question.
+
+### Setting up SQL Server
+
+1. Have a DBA create a database and run, in order:
+   `sql/sqlserver/01_schema.sql`, `02_reporting_views.sql`, `03_permissions.sql` (then add the app's
+   identity to role `cap_review_app` and reporting users to `cap_review_reporting`). SQL Server 2016+.
+2. Install Microsoft's *ODBC Driver 18 for SQL Server* and `pip install pyodbc`.
+3. Set the connection string (from a vault, not a file). Examples:
+
+```
+# Entra managed identity (app hosted in Azure):
+PORTAL_SQLSERVER="Driver={ODBC Driver 18 for SQL Server};Server=tcp:<server>,1433;Database=CapReview;Encrypt=yes;Authentication=ActiveDirectoryMsi"
+# Windows integrated auth (on-prem host running under a service account):
+PORTAL_SQLSERVER="Driver={ODBC Driver 18 for SQL Server};Server=<server>;Database=CapReview;Encrypt=yes;Trusted_Connection=yes"
+```
+
+The app checks the tables exist on start; it doesn't create or alter them in SQL Server. The demo seed data
+is only loaded into SQLite. Schema changes go into new numbered scripts in `sql/sqlserver/`; keep
+`sql/sqlite_schema.sql` in step.
+
+### Usage data from Db2
+
+```
+PORTAL_USAGE=db2
+PORTAL_DB2="Driver={IBM DB2 ODBC DRIVER};Database=...;Hostname=...;Port=...;Protocol=TCPIP;..."
+```
+
+Edit `sql/db2_usage_query.sql` to match your table: it receives one application key and returns
+`(month, avg MSU)` rows. Set `usage_key` on a team in `teams.json` if its Db2 key differs from its id. Results
+are cached for an hour (`PORTAL_USAGE_CACHE_SECONDS`). Without `PORTAL_USAGE=db2` the app uses the generated
+sample data in `sample_usage.py`.
+
+### Local demo database
+
+SQLite at `instance/portal.db` (or `PORTAL_DB`), created and seeded with two past cycles from
+`sample_data/past_submissions.json` on first run. Delete the file to start over.
 
 ## Tests
 
@@ -154,11 +201,11 @@ real tenant. Test it in a dev tenant first.
 
 | Sample piece | Replace with |
 |---|---|
-| `sample_usage.monthly_msu()` (generated MSU numbers) | Query your SMF/RMF-derived capacity data per application |
+| `sample_usage.py` (generated MSU numbers) | Your Db2 usage table: set `PORTAL_USAGE=db2` and edit `sql/db2_usage_query.sql` |
 | `cycles.py` | Add a new entry each spring/fall; the last one is the open cycle |
 | No notifications | Email the team on approve / request changes, and Capacity Planning on submit (e.g. Graph `sendMail`) |
 | `sample_data/teams.json` | Real app list + group IDs (or generate it from a CMDB export) |
-| SQLite | Postgres / SQL Server if more than one app server |
+| SQLite | SQL Server: set `PORTAL_SQLSERVER` after running `sql/sqlserver/*.sql` |
 | `python app.py` dev server | gunicorn/waitress behind your standard reverse proxy |
 | `questions.py` | Your actual questionnaire: the form, validation and CSV export are generated from it. Every dropdown, radio and checkbox question gets an "Other" option with a text box; set `"other": False` on a question to turn it off |
 

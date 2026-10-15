@@ -1,3 +1,6 @@
 flask>=3.0
 # Only needed for AUTH_MODE=entra
 msal>=1.28
+# Only needed for SQL Server (PORTAL_SQLSERVER) and/or Db2 usage data (PORTAL_USAGE=db2).
+# Also install Microsoft's "ODBC Driver 18 for SQL Server" and IBM's Db2 ODBC driver on the server.
+pyodbc>=5.0

@@ -60,7 +60,7 @@ def test_admin_sets_manual_baseline_and_it_locks_on_submit(client):
     submit_pay(client)
     with portal.app.test_request_context():
         sub = portal.load_submission("PAY")
-        assert sub["baseline"] == 450
+        assert sub["baseline_msu"] == 450 and sub["baseline_method"] == "manual"
 
     token = login(client, ADMIN)
     r = client.post("/admin/plan", data={"scope": "PAY", "method": "avg_3m", "_csrf": token})
@@ -171,7 +171,70 @@ def test_import_history(tmp_path, fresh_db):
     assert import_history.main([str(path)]) == 1  # PAY row fails, PRL imports
     with portal.app.test_request_context():
         sub = portal.load_submission("PRL", "2026-H1")
-        assert sub["status"] == "signed_off" and sub["baseline"] == 95
+        assert sub["status"] == "signed_off" and sub["baseline_msu"] == 95
         assert sub["answers"]["driver"] == "Other" and sub["answers"]["driver__other"] == "Something new"
-        assert portal.load_versions("PRL", "2026-H1")[0]["event"] == "import"
+        assert portal.store.load_events(portal.get_db(), "PRL", "2026-H1")[0]["event"] == "import"
     assert import_history.main([str(path), "--replace"]) == 1
+
+
+def test_answers_land_in_tables(client):
+    """Submitted answers are stored as rows, and round-trip back into the form unchanged."""
+    token = login(client, ALICE)
+    form = full_answers(("5", "-2.5", "", "10"))
+    form.update({"changes": ["Code or SQL tuning initiatives", "Other"], "changes__other": "Db2 13 upgrade",
+                 "biggest_change_month": "2027-02"})
+    assert client.post("/team/PAY", data={**form, "action": "save", "_csrf": token}).status_code == 302
+    with portal.app.test_request_context():
+        db = portal.get_db()
+        sub = portal.load_submission("PAY")
+        sid = sub["submission_id"]
+        growth = db.query("SELECT * FROM growth_projections WHERE submission_id = ? ORDER BY quarter_no", (sid,))
+        assert [g["team_pct"] for g in growth] == [5, -2.5, None, 10]
+        assert growth[0]["quarter_label"] == "Q4 2026" and growth[0]["quarter_start"] == "2026-10-01"
+        assert growth[0]["team_msu"] == round(sub["baseline_msu"] * 1.05, 1)
+        rows = {r["question_id"]: r for r in db.query("SELECT * FROM answers WHERE submission_id = ?", (sid,))}
+        assert rows["changes"]["value_text"] == "Code or SQL tuning initiatives; Other"
+        assert rows["changes"]["other_text"] == "Db2 13 upgrade"
+        assert "peaks" not in rows  # blank answers aren't stored
+        assert sub["answers"]["growth"] == ["5", "-2.5", "", "10"]
+        assert sub["answers"]["changes"] == ["Code or SQL tuning initiatives", "Other"]
+        assert sub["answers"]["biggest_change_month"] == "2027-02"
+
+
+def test_save_rejects_text_in_growth(client):
+    token = login(client, ALICE)
+    r = client.post("/team/PAY", data={**full_answers(("abc", "1", "1", "1")), "action": "save", "_csrf": token})
+    assert r.status_code == 400
+
+
+def test_reporting_view_uses_planning_value(client):
+    submit_pay(client)
+    token = login(client, ADMIN)
+    client.post("/team/PAY/flags", data={"target": "growth:1", "adjusted": "8", "comment": "Jan peak", "_csrf": token})
+    client.post("/team/PAY/flags", data={"target": "growth:2", "comment": "comment only", "_csrf": token})
+    with portal.app.test_request_context():
+        rows = portal.get_db().query(
+            "SELECT * FROM rpt_v_projections WHERE team_id = 'PAY' AND cycle_id = ? ORDER BY quarter_no", (portal.CYCLE,))
+        assert [r["planning_pct"] for r in rows] == [5, 8, 3, 2]
+        assert [r["is_adjusted"] for r in rows] == [0, 1, 0, 0]
+        assert rows[1]["planning_msu"] == round(rows[1]["baseline_msu"] * 1.08, 1)
+        assert rows[0]["planning_msu"] == rows[0]["team_msu"]
+
+
+def test_history_events_store_snapshots(client):
+    submit_pay(client)
+    with portal.app.test_request_context():
+        events = portal.store.load_events(portal.get_db(), "PAY", portal.CYCLE)
+        assert [e["event"] for e in events] == ["submit"]
+        assert events[0]["answers"]["growth"] == ["5", "4", "3", "2"]
+        assert events[0]["baseline_msu"] is not None
+
+
+def test_db2_month_formats():
+    import datetime
+    import usage
+    assert usage._month(datetime.date(2026, 9, 1)) == (2026, 9)
+    assert usage._month(datetime.datetime(2026, 9, 30, 12)) == (2026, 9)
+    assert usage._month(202609) == (2026, 9)
+    assert usage._month("202609") == (2026, 9)
+    assert usage._month("2026-09-01") == (2026, 9)

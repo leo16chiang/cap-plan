@@ -18,13 +18,15 @@ PASSWORD = portal.provider.demo_password
 
 @pytest.fixture()
 def fresh_db():
-    """Empty the current cycle's tables between tests; keep the seeded history."""
-    conn = portal.sqlite3.connect(portal.DB_PATH)
-    for sql in ("DELETE FROM submissions WHERE cycle = ?", "DELETE FROM submission_versions WHERE cycle = ?",
-                "DELETE FROM plan_settings WHERE cycle = ?", "DELETE FROM answer_flags WHERE cycle = ?"):
-        conn.execute(sql, (portal.CYCLE,))
-    conn.commit()
-    conn.close()
+    """Empty the current cycle's rows between tests; keep the seeded history."""
+    db = portal.dbmod.Database()
+    in_cycle = "submission_id IN (SELECT submission_id FROM submissions WHERE cycle_id = ?)"
+    for table in ("answers", "growth_projections", "answer_flags", "submission_events"):
+        db.execute(f"DELETE FROM {table} WHERE {in_cycle}", (portal.CYCLE,))
+    db.execute("DELETE FROM submissions WHERE cycle_id = ?", (portal.CYCLE,))
+    db.execute("DELETE FROM plan_settings WHERE cycle_id = ?", (portal.CYCLE,))
+    db.commit()
+    db.close()
 
 
 @pytest.fixture()

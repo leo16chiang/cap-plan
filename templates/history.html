@@ -71,7 +71,7 @@
     <summary>Capacity Planning flags ({{ e.flags|length }})</summary>
     <ul class="flag-list">
       {% for f in e.flags %}
-      <li><p class="flag-target">{{ f.target_label }}{% if not f.active %} <span class="small muted">· cleared {{ f.resolved_at|when }}{% if f.resolution_note %}: {{ f.resolution_note }}{% endif %}</span>{% endif %}</p>{{ flag_note(f, user.is_admin) }}</li>
+      <li><p class="flag-target">{{ f.target_label }}{% if not f.active %} <span class="small muted">· {{ f.resolution or "cleared" }} {{ f.resolved_at|when }}{% if f.resolution_note %}: {{ f.resolution_note }}{% endif %}</span>{% endif %}</p>{{ flag_note(f, user.is_admin) }}</li>
       {% endfor %}
     </ul>
   </details>
@@ -86,7 +86,7 @@
         <div class="changelog-head">
           <span class="event event-{{ v.event }}">{{ v.label }}</span>
           <span>{{ v.by_name or v.by_user }}</span>
-          <span class="small muted">{{ v.at|when }} · v{{ v.version }}</span>
+          <span class="small muted">{{ v.event_at|when }} · v{{ v.version }}</span>
         </div>
         {% if v.note %}<blockquote class="review-note">{{ v.note }}</blockquote>{% endif %}
         {% if v.changes is not none %}

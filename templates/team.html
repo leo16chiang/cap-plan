@@ -30,7 +30,7 @@
     <p class="banner-extra">⚑ Capacity Planning left {{ active_flags|length }} note{{ 's' if active_flags|length != 1 }} on your answers. Look for them below.</p>
   {% endif %}
   {% if baseline_moved %}
-    <p class="banner-extra">Capacity Planning changed your baseline from {{ sub.baseline }} to <b>{{ base.value }} MSU</b> since this was last saved.
+    <p class="banner-extra">Capacity Planning changed your baseline from {{ sub.baseline_msu }} to <b>{{ base.value }} MSU</b> since this was last saved.
       Your percentages are now measured against the new baseline. Check them before you submit.</p>
   {% endif %}
   </div>
@@ -123,7 +123,7 @@
     <ul class="flag-list">
       {% for f in cleared %}
       <li><p class="flag-target">{{ f.target_label }}</p>{{ flag_note(f, true) }}
-        <p class="small muted">Cleared by {{ f.resolved_name }}, {{ f.resolved_at|when }}{% if f.resolution_note %}: {{ f.resolution_note }}{% endif %}</p></li>
+        <p class="small muted">{{ (f.resolution or "cleared")|capitalize }} by {{ f.resolved_name }}, {{ f.resolved_at|when }}{% if f.resolution_note %}: {{ f.resolution_note }}{% endif %}</p></li>
       {% endfor %}
     </ul>
   </details>
@@ -151,8 +151,8 @@
 
 <section class="stats">
   <div class="stat"><span class="stat-label">Current baseline</span><span class="stat-value">{{ usage.baseline }} <small>MSU</small></span><span class="stat-sub">{{ usage.baseline_basis }}</span></div>
-  <div class="stat"><span class="stat-label">12-month peak</span><span class="stat-value">{{ usage.peak }} <small>MSU</small></span><span class="stat-sub">{{ usage.peak_label }}</span></div>
-  <div class="stat"><span class="stat-label">Year over year</span><span class="stat-value {{ 'up' if usage.yoy_pct > 0 else 'down' }}">{{ '%+.1f'|format(usage.yoy_pct) }}%</span><span class="stat-sub">last 6 months vs prior year</span></div>
+  <div class="stat"><span class="stat-label">12-month peak</span><span class="stat-value">{{ usage.peak if usage.peak is not none else '—' }} <small>MSU</small></span><span class="stat-sub">{{ usage.peak_label }}</span></div>
+  <div class="stat"><span class="stat-label">Year over year</span>{% if usage.yoy_pct is not none %}<span class="stat-value {{ 'up' if usage.yoy_pct > 0 else 'down' }}">{{ '%+.1f'|format(usage.yoy_pct) }}%</span>{% else %}<span class="stat-value muted">—</span>{% endif %}<span class="stat-sub">last 6 months vs prior year</span></div>
   {% if usage.lookback %}
   <div class="stat"><span class="stat-label">Last cycle vs actual</span><span class="stat-value {{ 'up' if usage.lookback.variance_pct > 0 else 'down' }}">{{ '%+.1f'|format(usage.lookback.variance_pct) }}%</span><span class="stat-sub">{{ usage.lookback.window }}, vs {{ usage.lookback.cycle_label }}</span></div>
   {% else %}

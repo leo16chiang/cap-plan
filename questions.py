@@ -226,6 +226,28 @@ def diff_answers(old, new, quarter_labels):
     return changes
 
 
+def validate_numbers(answers):
+    """Checks that apply even to drafts: "quarters" answers are stored as numbers."""
+    errors = {}
+    for q in ALL_QUESTIONS:
+        if q["type"] != "quarters":
+            continue
+        bad = []
+        for label, raw in zip(QUARTERS, answers.get(q["id"]) or []):
+            if raw == "":
+                continue
+            try:
+                num = float(raw)
+            except ValueError:
+                bad.append(f"{label} is not a number")
+                continue
+            if not -1000 < num < 10000 or num != num:
+                bad.append(f"{label} is out of range")
+        if bad:
+            errors[q["id"]] = "; ".join(bad) + "."
+    return errors
+
+
 def validate_complete(answers):
     """Drafts can be incomplete; submitting requires every required answer to be valid."""
     errors = {}

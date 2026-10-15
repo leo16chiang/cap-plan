@@ -1,5 +1,5 @@
 {
-  "_comment": "Maps each app team to the Entra security groups that grant access. Signers can edit and sign off; viewers are read-only. Replace the ids with the object IDs of your real Entra groups.",
+  "_comment": "Maps each app team to the Entra security groups that grant access. Signers can edit and sign off; viewers are read-only. Replace the ids with the object IDs of your real Entra groups. Optional usage_key: the application's key in the Db2 usage table (defaults to id).",
   "admin_group": { "id": "a9f3e2d1-5b7c-4c0e-8a1f-2d3e4f5a6b01", "displayName": "SG-CAPREVIEW-ADMINS" },
   "teams": [
     {

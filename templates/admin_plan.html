@@ -68,7 +68,7 @@
               {% for m, spec in methods.items() %}<option value="{{ m }}"{% if cur == m %} selected{% endif %}>{{ spec.label }}</option>{% endfor %}
             </select>
             <input type="number" step="0.1" min="0" name="value" placeholder="Manual MSU" aria-label="Manual baseline MSU"
-                   value="{{ r.plan.setting.baseline_value if r.plan.setting and r.plan.setting.baseline_value is not none else '' }}">
+                   value="{{ r.plan.setting.manual_msu if r.plan.setting and r.plan.setting.manual_msu is not none else '' }}">
             <input type="text" name="note" placeholder="Note (why)" aria-label="Note"
                    value="{{ r.plan.setting.note if r.plan.setting and r.plan.setting.note else '' }}">
             <button class="btn btn-small" type="submit">Save</button>
