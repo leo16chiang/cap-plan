@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_pill %}
+{% block title %}Plan settings · Capacity Review{% endblock %}
+{% block content %}
+<div class="admin-head">
+  <h1>Plan settings</h1>
+</div>
+{% include "_admin_tabs.html" %}
+
+<section class="card">
+  <h2>Starting point for {{ cycle_label }}</h2>
+  <p class="muted">Each team's growth percentages are measured against this baseline. It's what the team sees on its page,
+    and it's recorded with their answers when they save or submit. Once a team has submitted, its baseline is locked
+    until you send the review back.</p>
+  <form method="post" action="{{ url_for('admin_plan_save') }}" class="inline-form plan-default">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="scope" value="*">
+    <label for="default-method" class="sr-only">Cycle default</label>
+    <select id="default-method" name="method">
+      {% for m in computed %}<option value="{{ m }}"{% if m == cycle_default %} selected{% endif %}>{{ bases[m] }}</option>{% endfor %}
+    </select>
+    <input type="text" name="note" placeholder="Note (optional, logged)" aria-label="Note" value="{{ cycle_setting.note if cycle_setting and cycle_setting.note else '' }}">
+    <button class="btn btn-primary" type="submit">Set cycle default</button>
+  </form>
+  <p class="small muted">
+    {% if cycle_setting %}Set by {{ cycle_setting.updated_by }} on {{ cycle_setting.updated_at|when }}.
+    {% else %}Not set yet. Using the default from <code>cycles.py</code> ({{ methods[file_default].label|lower }}).{% endif %}
+    Teams without their own setting follow it.
+  </p>
+</section>
+
+<section class="card table-card">
+  <h2>Per-team baseline</h2>
+  <p class="muted small">Compare the calculations, then keep the default, pick another one, or enter a manual value
+    (for example last month adjusted for a known one-off). Manual values need a note. Values are average MSU.</p>
+  <table class="plan-table">
+    <thead>
+      <tr>
+        <th>Application</th>
+        {% for m in computed %}<th class="num">{{ methods[m].label }}</th>{% endfor %}
+        <th class="num">Baseline</th>
+        <th>Change</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr id="plan-{{ r.team.id }}">
+        <td><a href="{{ url_for('team_page', team_id=r.team.id) }}">{{ r.team.name }}</a> <span class="code">{{ r.team.id }}</span><br>{{ status_pill(r.sub.status) }}</td>
+        {% for m in computed %}
+        <td class="num{% if r.plan.method == m %} plan-current{% endif %}">{{ r.candidates[m] if r.candidates[m] is not none else '—' }}</td>
+        {% endfor %}
+        <td class="num">
+          <b>{{ r.effective.value if r.effective.value is not none else '—' }}</b><br>
+          <span class="small muted">{{ r.effective.basis }}{% if r.plan.source == 'cycle' and not r.effective.locked %} · cycle default{% endif %}</span>
+          {% if r.effective.locked and r.effective.value != r.plan.value %}<br><span class="small flag-stale">Plan setting is now {{ r.plan.value }} MSU. Applies if sent back.</span>{% endif %}
+          {% if r.plan.setting and r.plan.setting.note %}<br><span class="small muted">“{{ r.plan.setting.note }}”, {{ r.plan.setting.updated_by }}</span>{% endif %}
+        </td>
+        <td>
+          {% if r.locked %}
+          <p class="small muted">Locked: the team has submitted against this baseline. Send it back to change it.</p>
+          {% else %}
+          <form method="post" action="{{ url_for('admin_plan_save') }}" class="plan-form">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="scope" value="{{ r.team.id }}">
+            {% set cur = r.plan.setting.baseline_method if r.plan.setting else '' %}
+            <select name="method" aria-label="Baseline method for {{ r.team.name }}">
+              <option value=""{% if not cur %} selected{% endif %}>Cycle default</option>
+              {% for m, spec in methods.items() %}<option value="{{ m }}"{% if cur == m %} selected{% endif %}>{{ spec.label }}</option>{% endfor %}
+            </select>
+            <input type="number" step="0.1" min="0" name="value" placeholder="Manual MSU" aria-label="Manual baseline MSU"
+                   value="{{ r.plan.setting.baseline_value if r.plan.setting and r.plan.setting.baseline_value is not none else '' }}">
+            <input type="text" name="note" placeholder="Note (why)" aria-label="Note"
+                   value="{{ r.plan.setting.note if r.plan.setting and r.plan.setting.note else '' }}">
+            <button class="btn btn-small" type="submit">Save</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

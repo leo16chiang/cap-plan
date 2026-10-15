@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import field, status_pill, stepper %}
+{% from "_macros.html" import field, flag_note, status_pill, stepper %}
 {% block title %}{{ team.name }} · Capacity Review{% endblock %}
 {% block content %}
 {% include "_team_header.html" %}
@@ -25,6 +25,13 @@
   {% endif %}
   {% if sub.review_note and sub.status in ('changes_requested', 'approved') %}
     <blockquote class="review-note"><span class="small muted">Note from {{ sub.reviewed_name }}:</span> {{ sub.review_note }}</blockquote>
+  {% endif %}
+  {% if active_flags and not user.is_admin %}
+    <p class="banner-extra">⚑ Capacity Planning left {{ active_flags|length }} note{{ 's' if active_flags|length != 1 }} on your answers. Look for them below.</p>
+  {% endif %}
+  {% if baseline_moved %}
+    <p class="banner-extra">Capacity Planning changed your baseline from {{ sub.baseline }} to <b>{{ base.value }} MSU</b> since this was last saved.
+      Your percentages are now measured against the new baseline. Check them before you submit.</p>
   {% endif %}
   </div>
 </div>
@@ -66,6 +73,64 @@
 </section>
 {% endif %}
 
+{% if user.is_admin and sub.status != 'not_started' %}
+<section class="card review-panel" id="flags">
+  <h2>Flag an answer</h2>
+  <p class="muted">Comment on any answer and, if you want, record the value you'll plan with instead. The team's original answer is never changed. Both are kept and exported.</p>
+  {% set ff = flag_form %}
+  <form method="post" action="{{ url_for('flag_add', team_id=team.id) }}" class="flag-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="flag-grid">
+      <div>
+        <label for="flag-target">Answer</label>
+        <select id="flag-target" name="target" required>
+          <option value="">Choose…</option>
+          {% for key, label in flag_targets %}<option value="{{ key }}"{% if ff.target == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="flag-adjusted">Planning value <span class="muted small">(optional)</span></label>
+        <input type="text" id="flag-adjusted" name="adjusted" value="{{ ff.adjusted or '' }}" placeholder="e.g. 8 for +8%">
+      </div>
+    </div>
+    <label for="flag-comment">Comment <span class="req">*</span></label>
+    <textarea id="flag-comment" name="comment" rows="2" required placeholder="e.g. Q1 looks low given last January's peak. Planning with +8% unless you tell us otherwise.">{{ ff.comment or '' }}</textarea>
+    <label class="choice"><input type="checkbox" name="visible" value="1"{% if ff.visible or not ff %} checked{% endif %}> <span>Show this flag to the team</span></label>
+    <div class="actions"><button class="btn btn-primary" type="submit">Save flag</button></div>
+  </form>
+
+  {% set open = flags|selectattr('active')|list %}
+  {% set cleared = flags|rejectattr('active')|list %}
+  {% if open %}
+  <h3>Open flags</h3>
+  <ul class="flag-list">
+    {% for f in open %}
+    <li>
+      <p class="flag-target">{{ f.target_label }}</p>
+      {{ flag_note(f, true) }}
+      <form method="post" action="{{ url_for('flag_clear', team_id=team.id, flag_id=f.id) }}" class="inline-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="text" name="note" placeholder="Why it's resolved (optional)" aria-label="Reason for clearing">
+        <button class="btn btn-small" type="submit">Clear</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if cleared %}
+  <details class="history-details">
+    <summary>Cleared flags ({{ cleared|length }})</summary>
+    <ul class="flag-list">
+      {% for f in cleared %}
+      <li><p class="flag-target">{{ f.target_label }}</p>{{ flag_note(f, true) }}
+        <p class="small muted">Cleared by {{ f.resolved_name }}, {{ f.resolved_at|when }}{% if f.resolution_note %}: {{ f.resolution_note }}{% endif %}</p></li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</section>
+{% endif %}
+
 {% if can_sign %}
 <section class="card signoff-card">
   <h2>Sign off</h2>
@@ -85,7 +150,7 @@
 {% endif %}
 
 <section class="stats">
-  <div class="stat"><span class="stat-label">Current baseline</span><span class="stat-value">{{ usage.baseline }} <small>MSU</small></span><span class="stat-sub">avg {{ usage.baseline_window }}</span></div>
+  <div class="stat"><span class="stat-label">Current baseline</span><span class="stat-value">{{ usage.baseline }} <small>MSU</small></span><span class="stat-sub">{{ usage.baseline_basis }}</span></div>
   <div class="stat"><span class="stat-label">12-month peak</span><span class="stat-value">{{ usage.peak }} <small>MSU</small></span><span class="stat-sub">{{ usage.peak_label }}</span></div>
   <div class="stat"><span class="stat-label">Year over year</span><span class="stat-value {{ 'up' if usage.yoy_pct > 0 else 'down' }}">{{ '%+.1f'|format(usage.yoy_pct) }}%</span><span class="stat-sub">last 6 months vs prior year</span></div>
   {% if usage.lookback %}
@@ -115,7 +180,7 @@
     <section class="card">
       <h2>{{ section.title }}</h2>
       {% if section.intro %}<p class="muted">{{ section.intro }}</p>{% endif %}
-      {% for q in section.questions %}{{ field(q, answers, errors, quarters, usage, team.id) }}{% endfor %}
+      {% for q in section.questions %}{{ field(q, answers, errors, quarters, usage, team.id, active_flags, user.is_admin) }}{% endfor %}
     </section>
     {% endfor %}
 

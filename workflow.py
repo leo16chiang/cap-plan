@@ -30,6 +30,9 @@ EVENTS = {
     "approve": {"actor": "admin", "from": ("submitted",), "to": "approved", "label": "Approved for sign-off"},
     "signoff": {"actor": "signer", "from": ("approved",), "to": "signed_off", "label": "Signed off"},
     "reopen": {"actor": "admin", "from": ("signed_off",), "to": "draft", "note": True, "label": "Reopened"},
+    # Only used by import_history.py to load past cycles that were run over email.
+    "import": {"actor": "system", "from": ("not_started",), "to": "signed_off", "answers": True,
+               "label": "Imported from past records"},
 }
 
 TEAM_EVENTS = [e for e, spec in EVENTS.items() if spec["actor"] == "signer"]

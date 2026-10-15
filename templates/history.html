@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status_pill %}
+{% from "_macros.html" import flag_note, status_pill %}
 {% block title %}History · {{ team.name }} · Capacity Review{% endblock %}
 {% block content %}
 {% include "_team_header.html" %}
@@ -17,7 +17,7 @@
     <div>
       <h2>{{ e.cycle.label }}{% if e.is_current %} <span class="badge badge-signer">Current</span>{% endif %}</h2>
       <p class="small muted">Projected {{ e.cycle.quarters[0].label }} – {{ e.cycle.quarters[-1].label }}
-        {% if e.outcomes and e.outcomes.baseline %} · baseline {{ e.outcomes.baseline }} MSU{% endif %}</p>
+        {% if e.base.value is not none %} · baseline {{ e.base.value }} MSU{% if e.base.basis %} ({{ e.base.basis }}){% endif %}{% endif %}</p>
     </div>
     <div class="history-status">
       {{ status_pill(e.sub.status) }}
@@ -35,12 +35,13 @@
   <p class="small muted">Change in average monthly MSU versus that cycle's baseline.</p>
   <div class="table-scroll">
     <table class="outcomes">
-      <thead><tr><th>Quarter</th><th class="num">Projected</th><th class="num">Actual</th><th class="num">Difference</th><th></th></tr></thead>
+      <thead><tr><th>Quarter</th><th class="num">Projected</th>{% if e.outcomes.has_adjusted %}<th class="num">Planning</th>{% endif %}<th class="num">Actual</th><th class="num">Difference</th><th></th></tr></thead>
       <tbody>
         {% for q in e.outcomes.quarters %}
         <tr>
           <td>{{ q.label }}</td>
           <td class="num">{{ '%+.1f%%'|format(q.projected_pct) if q.projected_pct is not none else '—' }}</td>
+          {% if e.outcomes.has_adjusted %}<td class="num">{{ '%+.1f%%'|format(q.adjusted_pct) if q.adjusted_pct is not none else '—' }}</td>{% endif %}
           <td class="num">{{ '%+.1f%%'|format(q.actual_pct) if q.actual_pct is not none else '—' }}</td>
           <td class="num">
             {% if q.diff is not none %}
@@ -64,6 +65,17 @@
       {% endfor %}
     </dl>
   </details>
+
+  {% if e.flags %}
+  <details class="history-details">
+    <summary>Capacity Planning flags ({{ e.flags|length }})</summary>
+    <ul class="flag-list">
+      {% for f in e.flags %}
+      <li><p class="flag-target">{{ f.target_label }}{% if not f.active %} <span class="small muted">· cleared {{ f.resolved_at|when }}{% if f.resolution_note %}: {{ f.resolution_note }}{% endif %}</span>{% endif %}</p>{{ flag_note(f, user.is_admin) }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
 
   {% if e.changelog %}
   <details class="history-details">

@@ -6,6 +6,7 @@ so the rest of the app doesn't care which one is in use.
 """
 import json
 from pathlib import Path
+from urllib.parse import quote
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -103,4 +104,4 @@ class EntraAuth:
         return None
 
     def logout_url(self, post_logout_redirect):
-        return f"{self.authority}/oauth2/v2.0/logout?post_logout_redirect_uri={post_logout_redirect}"
+        return f"{self.authority}/oauth2/v2.0/logout?post_logout_redirect_uri={quote(post_logout_redirect, safe='')}"

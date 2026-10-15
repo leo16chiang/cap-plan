@@ -4,8 +4,12 @@
 {% block content %}
 <div class="admin-head">
   <h1>Review status</h1>
-  <a class="btn" href="{{ url_for('admin_export') }}">Export CSV</a>
+  <div class="admin-actions">
+    <a class="btn" href="{{ url_for('admin_export') }}">Export CSV</a>
+    <a class="btn" href="{{ url_for('admin_flags_export') }}">Export flags</a>
+  </div>
 </div>
+{% include "_admin_tabs.html" %}
 
 <section class="stats stats-6">
   <div class="stat {% if counts.submitted %}stat-attention{% endif %}"><span class="stat-label">Needs your review</span><span class="stat-value">{{ counts.submitted }}</span></div>
@@ -19,14 +23,16 @@
 <section class="card table-card">
   <table>
     <thead>
-      <tr><th>Application</th><th>Status</th><th>Submitted</th><th>Reviewed</th><th>Signed off</th></tr>
+      <tr><th>Application</th><th>Status</th><th class="num">Baseline</th><th class="num">Open flags</th><th>Submitted</th><th>Reviewed</th><th>Signed off</th></tr>
     </thead>
     <tbody>
-      {% for team, sub in rows %}
+      {% for team, sub, base, n_flags in rows %}
       <tr class="{% if sub.status == 'submitted' %}row-attention{% endif %}">
         <td><a href="{{ url_for('team_page', team_id=team.id) }}">{{ team.name }}</a> <span class="code">{{ team.id }}</span>
           {% if sub.status == 'submitted' %}<br><a class="small" href="{{ url_for('team_page', team_id=team.id) }}">Review now →</a>{% endif %}</td>
         <td>{{ status_pill(sub.status) }}</td>
+        <td class="num">{{ base.value if base.value is not none else '—' }} <span class="small muted">MSU</span><br><span class="small muted">{{ base.basis }}</span></td>
+        <td class="num">{% if n_flags %}<a href="{{ url_for('team_page', team_id=team.id) }}#flags">{{ n_flags }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
         <td>{% if sub.submitted_at %}{{ sub.submitted_by }}<br><span class="small muted">{{ sub.submitted_at|when }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
         <td>{% if sub.reviewed_at %}{{ sub.reviewed_name }}<br><span class="small muted">{{ sub.reviewed_at|when }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
         <td>{% if sub.signed_off_by %}{{ sub.signed_off_name }}<br><span class="small muted">{{ sub.signed_off_at|when }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>

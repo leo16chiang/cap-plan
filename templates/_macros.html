@@ -16,7 +16,56 @@
   </ol>
 {%- endmacro %}
 
-{% macro field(q, answers, errors, quarters, usage, team_id) %}
+{% macro flag_note(f, is_admin) -%}
+<div class="flag-note" role="note">
+  <span class="flag-tag">⚑ Capacity Planning{% if not f.visible_to_team %} · internal{% endif %}</span>
+  {% if f.adjusted %}
+  <span class="flag-values">Planning with <b>{{ f.adjusted_display }}</b> <span class="muted">(team: {{ f.original_display or 'blank' }})</span></span>
+  {% endif %}
+  <span class="flag-comment">{{ f.comment }}</span>
+  <span class="small muted">{{ f.created_name }}, {{ f.created_at|when }}</span>
+  {% if f.stale and is_admin %}<span class="small flag-stale">The team has changed this answer since it was flagged (now {{ f.current_display or 'blank' }}).</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro reference(usage, quarters) %}
+{% if usage.previous or usage.statistical %}
+<div class="reference">
+  <p class="ref-title">For reference</p>
+  <div class="table-scroll">
+  <table class="ref-table">
+    <thead><tr><th></th>{% for qt in quarters %}<th class="num">{{ qt }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for r in usage.previous if r.cells|select|list %}
+      <tr>
+        <th scope="row">Your {{ r.label|replace(' review', '') }} answer <span class="small muted">· {{ r.status|lower }}</span></th>
+        {% for c in r.cells %}
+        <td class="num">{% if c %}{{ '%+.1f%%'|format(c.pct) if c.pct is not none else '' }}<span class="ref-msu">{{ c.msu }} MSU</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+      {% if usage.statistical %}
+      <tr class="ref-stat">
+        <th scope="row">Statistical projection <span class="small muted">· from actual usage</span></th>
+        {% for c in usage.statistical %}
+        <td class="num">{{ '%+.1f%%'|format(c.pct) if c.pct is not none else '' }}<span class="ref-msu">{{ c.msu }} MSU</span></td>
+        {% endfor %}
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+  </div>
+  {% if usage.statistical %}
+  <button type="button" class="btn btn-small" id="use-statistical">Fill in the statistical projection</button>
+  {% endif %}
+  <p class="small muted">Percentages are against today's baseline ({{ usage.baseline }} MSU), so earlier answers made against a different baseline are converted.
+    {% for r in usage.previous %}{{ r.label }} as entered: {{ r.raw }} (vs {{ r.baseline }} MSU). {% endfor %}
+    {% if usage.statistical %}The statistical projection is a straight-line trend over your last {{ usage.statistical_months }} months of actual usage with your usual month-to-month seasonality applied. It knows nothing about planned changes.{% endif %}</p>
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro field(q, answers, errors, quarters, usage, team_id, flags={}, is_admin=false) %}
 {% set val = answers.get(q.id) %}
 {% set err = errors.get(q.id) %}
 <div class="q{% if err %} has-error{% endif %}" id="field-{{ q.id }}">
@@ -52,9 +101,12 @@
         <span aria-hidden="true">%</span>
       </div>
       <output class="msu-preview" data-quarter="{{ loop.index0 }}"></output>
+      {% set f = flags.get(q.id ~ ':' ~ loop.index0) %}
+      {% if f %}{{ flag_note(f, is_admin) }}{% endif %}
     </div>
     {% endfor %}
   </div>
+  {% if q.id == 'growth' %}{{ reference(usage, quarters) }}{% endif %}
 
   {% elif q.type == 'select' %}
   <select id="{{ q.id }}" name="{{ q.id }}">
@@ -97,6 +149,8 @@
   {% else %}
   <input type="text" id="{{ q.id }}" name="{{ q.id }}" value="{{ val or '' }}" maxlength="4000" placeholder="{{ q.placeholder or '' }}">
   {% endif %}
+
+  {% if flags.get(q.id) %}{{ flag_note(flags.get(q.id), is_admin) }}{% endif %}
 
   {% if err %}<p class="err">{{ err }}</p>{% endif %}
 </div>

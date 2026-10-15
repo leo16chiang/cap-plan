@@ -1,0 +1,4 @@
+<nav class="tabs" aria-label="Admin sections">
+  <a href="{{ url_for('admin') }}" {% if active_admin == 'overview' %}aria-current="page"{% endif %}>Review status</a>
+  <a href="{{ url_for('admin_plan') }}" {% if active_admin == 'plan' %}aria-current="page"{% endif %}>Plan settings</a>
+</nav>

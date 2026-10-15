@@ -14,6 +14,7 @@ SECTIONS = [
                 "id": "growth",
                 "type": "quarters",
                 "label": "Projected change in average monthly CPU (MSU) versus your current baseline",
+                "short": "Projected change",
                 "help": "Percent change per quarter relative to the baseline shown above. Use negative numbers for reductions, 0 for no change.",
                 "required": True,
                 "min": -100,
@@ -253,3 +254,69 @@ def validate_complete(answers):
         elif _other_selected(q, value or "") and not answers.get(other_key(qid)):
             errors[qid] = "You picked 'Other'. Please describe it in the box."
     return errors
+
+
+# ---------------------------------------------------------------- Capacity Planning flags
+# An admin can flag any answer with a comment and, optionally, the value Capacity Planning will plan
+# with instead. "quarters" questions are flagged one quarter at a time. The team's answer is never
+# changed; the flag stores both (see the answer_flags table in app.py).
+
+FLAG_MAX_TEXT = 1000
+
+
+def flag_targets():
+    """[(target key, label)] for every answer that can be flagged, in form order."""
+    out = []
+    for q in ALL_QUESTIONS:
+        if q["type"] == "quarters":
+            out += [(f"{q['id']}:{i}", f"{q.get('short', q['label'])}: {qt}") for i, qt in enumerate(QUARTERS)]
+        else:
+            out.append((q["id"], q.get("short", q["label"])))
+    return out
+
+
+def target_key(question_id, quarter):
+    return question_id if quarter is None else f"{question_id}:{quarter}"
+
+
+def parse_target(key):
+    """'growth:2' -> (question, 2); 'driver' -> (question, None); None if it isn't a valid target."""
+    qid, _, idx = (key or "").partition(":")
+    q = next((q for q in ALL_QUESTIONS if q["id"] == qid), None)
+    if q is None:
+        return None
+    if q["type"] == "quarters":
+        if not idx.isdigit() or int(idx) >= len(QUARTERS):
+            return None
+        return q, int(idx)
+    return (q, None) if not idx else None
+
+
+def target_value(q, quarter, answers):
+    """The team's current answer for one flag target, as stored text ('' when blank)."""
+    if quarter is not None:
+        values = answers.get(q["id"]) or []
+        return values[quarter] if quarter < len(values) else ""
+    return display_value(q, answers, QUARTERS)
+
+
+def format_target_value(q, quarter, raw):
+    if raw in ("", None):
+        return ""
+    return f"{raw}%" if quarter is not None else raw
+
+
+def parse_adjusted(q, quarter, raw):
+    """Validates an admin's planning value. Returns (value or None, error or None)."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None, None
+    if quarter is None:
+        return raw[:FLAG_MAX_TEXT], None
+    try:
+        num = float(raw)
+    except ValueError:
+        return None, "The adjusted value must be a number (percent change)."
+    if not q["min"] <= num <= q["max"]:
+        return None, f"The adjusted value must be between {q['min']}% and {q['max']}%."
+    return f"{num:g}", None

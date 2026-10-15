@@ -16,7 +16,7 @@
       </a>
       {% if user %}
       <div class="who">
-        {% if user.is_admin %}<a href="{{ url_for('admin') }}">Overview</a>{% elif user.roles|length > 1 %}<a href="{{ url_for('my_teams') }}">My applications</a>{% endif %}
+        {% if user.is_admin %}<a href="{{ url_for('admin') }}">Overview</a> <a href="{{ url_for('admin_plan') }}">Plan settings</a>{% elif user.roles|length > 1 %}<a href="{{ url_for('my_teams') }}">My applications</a>{% endif %}
         <span class="who-name">{{ user.name }}</span>
         {% if user.is_admin %}<span class="badge badge-admin">Admin</span>{% endif %}
         <form method="post" action="{{ url_for('logout') }}">

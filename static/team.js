@@ -9,7 +9,7 @@
 
   function pctFor(q) {
     var v = inputs[q] ? parseFloat(inputs[q].value) : NaN;
-    return isNaN(v) ? null : v;
+    return isNaN(v) || d.baseline === null ? null : v;
   }
 
   // Each quarter's % applies to its three months, relative to the current baseline.
@@ -24,7 +24,7 @@
     return out;
   }
 
-  var baselineLine = d.labels.map(function (_, i) { return i >= d.n_hist - 3 ? d.baseline : null; });
+  var baselineLine = d.labels.map(function (_, i) { return i >= d.n_hist - (d.baseline_n || 1) ? d.baseline : null; });
 
   var chart = null;
   if (window.Chart) {
@@ -43,7 +43,13 @@
             borderWidth: 2.5, pointRadius: 3, stepped: 'middle' },
           { label: 'Current baseline', data: baselineLine, borderColor: token('--grid-strong'), backgroundColor: token('--grid-strong'),
             borderWidth: 1, borderDash: [2, 3], pointRadius: 0 }
-        ]
+        ].concat(d.statistical_projection ? [
+          { label: 'Statistical projection', data: d.statistical_projection, borderColor: token('--series-stat'), backgroundColor: token('--series-stat'),
+            borderWidth: 1.5, borderDash: [3, 3], pointRadius: 0, hidden: false }
+        ] : []).concat(d.adjusted_projection ? [
+          { label: 'Capacity Planning adjusted', data: d.adjusted_projection, borderColor: token('--series-adj'), backgroundColor: token('--series-adj'),
+            borderWidth: 2, pointRadius: 2, stepped: 'middle' }
+        ] : [])
       },
       options: {
         responsive: true,
@@ -76,6 +82,18 @@
   }
   inputs.forEach(function (i) { i.addEventListener('input', refresh); });
   refresh();
+
+  // Copy the statistical projection's percentages into the growth inputs (the team can then adjust).
+  var useStat = document.getElementById('use-statistical');
+  if (useStat && d.statistical) {
+    useStat.addEventListener('click', function () {
+      d.statistical.forEach(function (q, i) {
+        if (inputs[i] && q.pct !== null) inputs[i].value = q.pct;
+      });
+      dirty = true;
+      refresh();
+    });
+  }
 
   // "None planned" can't be combined with other choices.
   document.querySelectorAll('[data-exclusive]').forEach(function (group) {

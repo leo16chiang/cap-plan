@@ -20,6 +20,8 @@
   --series-actual: #1f62c7;
   --series-last: #8a94a3;
   --series-new: #d4740b;
+  --series-adj: #7b3fb8;
+  --series-stat: #2a9d8f;
   --radius: 10px;
 }
 
@@ -225,13 +227,45 @@ th.num { text-align: right; }
 .event-submit { color: var(--accent); }
 .event-request_changes { color: var(--bad); }
 .event-reopen { color: var(--warn); }
+.event-import { color: var(--muted); }
 .diff-table { margin-top: 6px; font-size: .86rem; }
 .diff-table th { text-transform: none; letter-spacing: 0; font-size: .86rem; color: var(--ink); font-weight: 600; width: 34%; border-bottom: 1px solid var(--grid); vertical-align: top; }
 .diff-table td { padding: 6px 10px; }
 del { color: var(--bad); background: var(--bad-soft); text-decoration: line-through; padding: 0 3px; border-radius: 3px; }
 ins { color: var(--good); background: var(--good-soft); text-decoration: none; padding: 0 3px; border-radius: 3px; }
 
+/* admin plan settings & flags */
+.admin-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.plan-default select { max-width: 280px; }
+.plan-table td { white-space: normal; }
+.plan-current { font-weight: 700; color: var(--accent); }
+.plan-form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-width: 260px; }
+.plan-form input, .plan-form select { padding: 5px 8px; font-size: .88rem; }
+.plan-form input[name=note] { grid-column: 1 / -1; }
+.flag-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+.flag-form label { font-weight: 600; font-size: .9rem; display: block; margin-top: 8px; }
+.flag-form label.choice { font-weight: 400; }
+.flag-note { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; padding: 6px 10px; background: #f6effc; border-left: 3px solid var(--series-adj); border-radius: 0 6px 6px 0; font-size: .88rem; white-space: pre-line; }
+.flag-tag { font-size: .75rem; font-weight: 700; color: var(--series-adj); text-transform: uppercase; letter-spacing: .04em; }
+.flag-stale { color: var(--warn); font-weight: 600; }
+.flag-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 12px; }
+.flag-target { font-weight: 600; margin: 0; font-size: .9rem; }
+.flag-list .inline-form { margin-top: 6px; }
+.banner-extra { margin: 6px 0 0; }
+
+/* reference: previous answers + statistical projection */
+.reference { margin-top: 12px; padding: 10px 12px; background: var(--bg); border-radius: 8px; border: 1px solid var(--line); }
+.ref-title { margin: 0 0 4px; font-weight: 600; font-size: .88rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.ref-table { font-size: .88rem; }
+.ref-table th[scope=row] { text-transform: none; letter-spacing: 0; font-size: .88rem; color: var(--ink); font-weight: 600; }
+.ref-table td, .ref-table th { padding: 6px 8px; }
+.ref-msu { display: block; font-size: .78rem; color: var(--muted); }
+.ref-stat th[scope=row], .ref-stat td { color: var(--series-stat); }
+.reference .btn { margin: 6px 0 4px; }
+.reference p.small { margin: 4px 0 0; }
+
 @media (max-width: 720px) {
+  .flag-grid, .plan-form { grid-template-columns: 1fr; }
   .review-actions { grid-template-columns: 1fr; }
   .stepper li { min-width: 50%; }
   .stepper li::after { display: none; }

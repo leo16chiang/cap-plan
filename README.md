@@ -27,7 +27,7 @@ The login page lists them. The shared password is in `sample_data/mock_entra_dir
 | carla.diaz | Signer for two teams: gets an app picker |
 | dev.patel | Viewer only: form is read-only, sign-off is refused |
 | erin.walsh | Valid login, no groups: "no application assigned" page |
-| cap.admin | Capacity Planning: review queue, approve or request changes, reopen, audit log, CSV export |
+| cap.admin | Capacity Planning: review queue, approve or request changes, reopen, plan settings, flags, audit log, CSV export |
 
 ## How access works
 
@@ -60,16 +60,70 @@ draft ──submit──▶ submitted ──approve──▶ approved ──sign
 
 Answers lock on submit and stay locked through approval, so the team signs exactly what was reviewed.
 
+## Plan settings (admin)
+
+**Overview → Plan settings** sets the baseline (starting point) each team's growth % is measured against:
+
+- **Cycle default**: last month, 3-month average, 6-month average or 12-month peak of the months before
+  the cycle's first quarter. Until you set one, `default_baseline` in `cycles.py` applies (last month for
+  the current cycle; past cycles keep the 3-month average they were run with).
+- **Per team**: any of those, or a **manual value** (with a required note), e.g. last month adjusted for a
+  one-off. The table shows every calculation side by side.
+- The baseline is recorded with the team's answers on every save/submit. Once a team has submitted, its
+  baseline is locked; send the review back (or reopen it) to change it. If the baseline moves while a team
+  is still editing, their page tells them.
+
+## Flags (admin)
+
+On a team's page, **Flag an answer** adds a comment to any answer (growth is flagged per quarter) and,
+optionally, the **planning value** Capacity Planning will use instead. The team's answer is never edited:
+each flag stores the original answer and the adjusted value. Flags can be shared with the team (shown next
+to the answer) or kept internal. Re-flagging an answer supersedes the old flag; clearing one keeps it, marked
+cleared. The main CSV adds `planning_growth_*` / `planning_msu_*` columns (adjusted value if flagged,
+otherwise the team's); **Export flags** downloads every flag with original and adjusted values.
+
+## Reference numbers on the form
+
+Under the growth question, teams see their answers from the last two cycles, converted to % against
+today's baseline (and the raw answers as entered). They also see a **statistical projection**: a linear
+trend over all months of actual usage times a per-calendar-month seasonal index. "Fill in the statistical
+projection" copies it into the inputs as a starting point. It's also drawn on the chart.
+
+## Importing past cycles (one-time)
+
+`import_history.py` loads past reviews (e.g. the email era) from a CSV as signed-off submissions:
+
+```bash
+python import_history.py --template 2026-H1 > past.csv   # header row to fill in
+python import_history.py past.csv --dry-run              # validate only
+python import_history.py past.csv                        # import
+```
+
+Include `baseline_msu` (what the team's % were against) when you have it. Older cycles need adding to
+`cycles.CYCLES` first. Existing submissions are skipped; `--replace` only overwrites earlier imports. See the
+docstring for all columns.
+
 ## Data
 
 SQLite at `instance/portal.db`:
 
 - `submissions`: current state per team per cycle (answers as JSON, status, who submitted/reviewed/signed and when)
 - `submission_versions`: a full snapshot of the answers on every workflow event; powers the History tab's change log
-- `audit_log`: logins, actions, denied attempts, exports
+- `plan_settings`: baseline method / manual value per cycle (`team_id = '*'` is the cycle default) and per team
+- `answer_flags`: Capacity Planning flags with the team's original answer and the adjusted value; never deleted
+- `audit_log`: logins, actions, denied attempts, exports, plan changes, flags
 
 In demo mode the database is seeded with two past cycles from `sample_data/past_submissions.json`.
-There are no migrations: if you change the schema, delete `instance/portal.db` and restart.
+New columns are added to an existing database automatically on start (`ADDED_COLUMNS` in `app.py`).
+For bigger schema changes, delete `instance/portal.db` and restart (or adopt a migration tool).
+Set `PORTAL_DB` to use a different database file.
+
+## Tests
+
+```bash
+pip install pytest
+python -m pytest tests
+```
 
 ## Switching to real Entra ID
 
@@ -85,7 +139,7 @@ AUTH_MODE=entra
 ENTRA_TENANT_ID=...
 ENTRA_CLIENT_ID=...
 ENTRA_CLIENT_SECRET=...        # from a vault, not a file
-PORTAL_SECRET_KEY=<long random value>
+PORTAL_SECRET_KEY=<long random value>   # required outside demo mode; the app refuses to start without it
 PORTAL_HTTPS=1
 ```
 
